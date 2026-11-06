@@ -35,7 +35,7 @@ Același stil și aceeași arhitectură ca [Bingo](https://github.com/florin2495
 
 1. Import repo-ul `florin2495/webAvioaneleGame` în Vercel (framework: Next.js, setările implicite).
 2. **Settings → Environment Variables**: `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`.
-3. **Settings → Domains → Add Existing** → `avioane.hailatat.icu`.
+3. **Settings → Domains → Add Existing** → `airplanes.hailatat.icu`.
 
 ## Teste
 
