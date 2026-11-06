@@ -25,6 +25,8 @@ Rules for schema changes:
 - Code that needs a migration must not be pushed until the user has run it. Verify it by effect with the service key.
 - Never print or commit the keys in `.env.local`.
 
+Feedback (`POST /api/feedback`) writes to `hub_feedback` (owned by `florin2495/hailataticu-hub`, slug `airplanes`); this game must not be deployed before that table exists.
+
 ## Testing
 - `npm test` (Vitest, pure rules in `src/lib/game.ts`), `npx tsc --noEmit`, `npx eslint src`, `npx next build`.
 - End-to-end: drive the real API with two players and a spectator (create, join, board, ready -> auto start,
