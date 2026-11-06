@@ -18,7 +18,7 @@ Migrations are run by hand in the Supabase SQL editor, so this list is the sourc
 
 | Migration | Applied to the live DB | Notes |
 | --- | --- | --- |
-| `supabase/schema.sql` (initial) | **no - not yet confirmed** | `airplanes_rooms`, `airplanes_players`, `airplanes_boards`, `airplanes_moves` |
+| `supabase/schema.sql` (initial) | yes (2026-11-06, verified) | `airplanes_rooms`, `airplanes_players`, `airplanes_boards`, `airplanes_moves` |
 
 Rules for schema changes:
 - New migration = new numbered file in `supabase/migrations/`, additive when possible, folded into `supabase/schema.sql` too.
