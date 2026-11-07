@@ -2,7 +2,7 @@ import { layoutError } from "@/lib/game";
 import { notifyRoom } from "@/lib/server/broadcast";
 import { db, T } from "@/lib/server/db";
 import { fail, handle, readJson } from "@/lib/server/http";
-import { getPlanes, listPlayers, requireMember, requireSeat, requireStatus } from "@/lib/server/room";
+import { clearPendingKicks, getPlanes, listPlayers, requireMember, requireSeat, requireStatus } from "@/lib/server/room";
 
 // POST /api/rooms/[code]/ready  { ready: boolean }
 // The game starts on its own as soon as both seats are filled and both players are ready.
@@ -33,6 +33,7 @@ export async function POST(req: Request, ctx: RouteContext<"/api/rooms/[code]/re
         .eq("status", "lobby")
         .eq("round", room.round);
       if (startError) throw startError;
+      await clearPendingKicks(room.id);
       await notifyRoom(room.id, "started");
       return { ok: true, started: true };
     }

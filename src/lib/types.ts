@@ -9,6 +9,8 @@ export interface PublicPlayer {
   ready: boolean;
   /** 1 or 2 for the two players, null for a spectator. */
   seat: Seat | null;
+  /** Ms left of a pending host kick (10 s grace), null when none. Relative, so no clock skew. */
+  kickRemainingMs: number | null;
 }
 
 /** What GET /api/rooms/[code]/state returns to a member. Never contains the opponent's planes while playing. */

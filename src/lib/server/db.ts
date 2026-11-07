@@ -46,8 +46,9 @@ export interface PlayerRow {
   seat: Seat | null;
   ready: boolean;
   joined_at: string;
+  kick_requested_at: string | null;
 }
 
 export const ROOM_COLUMNS =
   "id, code, name, password_hash, planes_count, status, round, host_player_id, winner_player_id, last_activity_at";
-export const PLAYER_COLUMNS = "id, room_id, nickname, is_host, seat, ready, joined_at";
+export const PLAYER_COLUMNS = "id, room_id, nickname, is_host, seat, ready, joined_at, kick_requested_at";

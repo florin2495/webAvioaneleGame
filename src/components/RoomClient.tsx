@@ -13,6 +13,7 @@ import {
   subscribeSession,
 } from "@/lib/client/api";
 import { PREF_NICKNAME, useStringPref, writePref } from "@/lib/client/prefs";
+import { useKickCountdown } from "@/lib/client/kick";
 import { realtimeClient } from "@/lib/client/realtime";
 import { minutesLabel, NICKNAME_MAX, ROOM_IDLE_MINUTES } from "@/lib/game";
 import type { RoomState } from "@/lib/types";
@@ -142,7 +143,53 @@ function Room({ code, token }: { code: string; token: string }) {
       )}
       <SettingsPanel />
       <LeaveButton state={state} token={token} />
+      {state.me.kickRemainingMs !== null && <KickModal state={state} token={token} refresh={refresh} />}
     </main>
+  );
+}
+
+function KickModal({ state, token, refresh }: { state: RoomState; token: string; refresh: () => Promise<void> }) {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const seconds = useKickCountdown(state.me.kickRemainingMs, state, () => void refresh()) ?? 0;
+
+  async function ignore() {
+    setBusy(true);
+    setError("");
+    try {
+      await api(`/api/rooms/${state.room.code}/kick/ignore`, { token, body: {} });
+    } catch (err) {
+      // 401 means we were already removed: refresh shows the "removed" flow.
+      if (!(err instanceof ApiRequestError && err.status === 401)) {
+        setError(err instanceof Error ? err.message : "Eroare.");
+      }
+    }
+    await refresh();
+    setBusy(false);
+  }
+
+  return (
+    <div className="fixed inset-0 z-[60] flex items-end justify-center bg-black/60 p-4 sm:items-center">
+      <div
+        role="alertdialog"
+        aria-modal="true"
+        aria-labelledby="kick-title"
+        aria-describedby="kick-text"
+        className="flex w-full max-w-md flex-col gap-3 rounded-2xl bg-white p-5 shadow-xl dark:bg-zinc-900"
+      >
+        <h2 id="kick-title" className="text-lg font-bold">
+          Ai fost scos din joc
+        </h2>
+        <p id="kick-text">Gazda te-a scos din cameră. Apasă „Ignoră” în {seconds} s ca să rămâi în joc.</p>
+        <p aria-hidden className="text-center text-5xl font-black tabular-nums text-rose-600 dark:text-rose-400">
+          {seconds}
+        </p>
+        <ErrorText>{error}</ErrorText>
+        <Button onClick={() => void ignore()} disabled={busy}>
+          Ignoră
+        </Button>
+      </div>
+    </div>
   );
 }
 

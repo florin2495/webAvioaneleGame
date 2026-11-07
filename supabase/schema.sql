@@ -36,11 +36,13 @@ create table if not exists public.airplanes_players (
   is_host    boolean not null default false,
   seat       smallint check (seat in (1, 2)),
   ready      boolean not null default false,
-  joined_at  timestamptz not null default now()
+  joined_at  timestamptz not null default now(),
+  kick_requested_at timestamptz -- pending host kick during a game (null = none), see migrations/001
 );
 create unique index if not exists airplanes_players_room_nickname_uq on public.airplanes_players (room_id, lower(nickname));
 create unique index if not exists airplanes_players_room_seat_uq on public.airplanes_players (room_id, seat) where seat is not null;
 create index if not exists airplanes_players_room_idx on public.airplanes_players (room_id);
+alter table public.airplanes_players add column if not exists kick_requested_at timestamptz;
 
 do $$ begin
   alter table public.airplanes_rooms

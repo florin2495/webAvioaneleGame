@@ -1,6 +1,7 @@
 import "server-only";
 import { notifyRoom } from "./broadcast";
-import { db, T, type RoomRow } from "./db";
+import { db, ROOM_COLUMNS, T, type RoomRow } from "./db";
+import { isKickExpired } from "@/lib/kick";
 import { finishGame, listPlayers } from "./room";
 
 /**
@@ -48,4 +49,41 @@ export async function removePlayer(room: RoomRow, playerId: string, reason: stri
 
   await notifyRoom(room.id, reason);
   return { roomClosed: false };
+}
+
+/**
+ * Removes players whose pending kick has run out (grace + network allowance). Serverless has no
+ * timers, so every room request calls this. Each removal is claimed atomically (clear the stamp only
+ * if it is still the value we read), so concurrent requests never remove the same player twice.
+ * Returns true when somebody was removed (the caller should re-read the room).
+ */
+export async function enforceExpiredKicks(room: RoomRow): Promise<boolean> {
+  const { data, error } = await db()
+    .from(T.players)
+    .select("id, kick_requested_at")
+    .eq("room_id", room.id)
+    .not("kick_requested_at", "is", null);
+  if (error) throw error;
+  const now = Date.now();
+  const expired = (data ?? []).filter((p) => isKickExpired(p.kick_requested_at as string, now));
+  if (expired.length === 0) return false;
+
+  let removed = false;
+  let current = room;
+  for (const p of expired) {
+    const { data: claimed, error: claimError } = await db()
+      .from(T.players)
+      .update({ kick_requested_at: null })
+      .eq("id", p.id)
+      .eq("kick_requested_at", p.kick_requested_at)
+      .select("id");
+    if (claimError) throw claimError;
+    if (!claimed?.length) continue; // another request got it
+    const { data: fresh } = await db().from(T.rooms).select(ROOM_COLUMNS).eq("id", room.id).maybeSingle();
+    if (!fresh) return true; // room already closed
+    current = fresh as RoomRow;
+    await removePlayer(current, p.id as string, "player_kicked");
+    removed = true;
+  }
+  return removed;
 }

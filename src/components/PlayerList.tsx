@@ -2,8 +2,15 @@
 
 import { useState } from "react";
 import { api } from "@/lib/client/api";
+import { useKickCountdown } from "@/lib/client/kick";
 import type { RoomState } from "@/lib/types";
 import { ErrorText } from "./ui";
+
+function KickBadge({ remainingMs, state, refresh }: { remainingMs: number | null; state: RoomState; refresh: () => Promise<void> }) {
+  const seconds = useKickCountdown(remainingMs, state, () => void refresh());
+  if (seconds === null) return null;
+  return <span className="text-xs font-semibold text-rose-600 dark:text-rose-400">iese în {seconds} s</span>;
+}
 
 export function PlayerList({ state, token, refresh }: { state: RoomState; token: string; refresh: () => Promise<void> }) {
   const { players, me, room } = state;
@@ -13,7 +20,8 @@ export function PlayerList({ state, token, refresh }: { state: RoomState; token:
   const freeSeats = 2 - players.filter((p) => p.seat).length;
 
   async function kick(id: string, nickname: string, seated: boolean) {
-    const midGame = room.status === "playing" && seated ? " Jocul se termină și câștigi tu." : "";
+    const midGame =
+      room.status === "playing" && seated ? " Are 10 s să refuze; dacă nu, jocul se termină și câștigi tu." : "";
     if (!window.confirm(`Îl scoți pe ${nickname} din cameră?${midGame}`)) return;
     setBusy(id);
     setError("");
@@ -48,6 +56,7 @@ export function PlayerList({ state, token, refresh }: { state: RoomState; token:
                 )}
               </span>
               <span className="flex shrink-0 items-center gap-2">
+                <KickBadge remainingMs={p.kickRemainingMs} state={state} refresh={refresh} />
                 {!p.seat ? (
                   <span className="text-xs text-zinc-500">spectator</span>
                 ) : room.status === "lobby" ? (

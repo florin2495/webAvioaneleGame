@@ -22,7 +22,7 @@ export async function POST(req: Request, ctx: RouteContext<"/api/rooms/[code]/ne
     if (error) throw error;
     if (!data?.length) fail(409, "Runda nouă a fost deja pornită.");
 
-    const { error: readyError } = await db().from(T.players).update({ ready: false }).eq("room_id", room.id);
+    const { error: readyError } = await db().from(T.players).update({ ready: false, kick_requested_at: null }).eq("room_id", room.id);
     if (readyError) throw readyError;
     await notifyRoom(room.id, "new_round");
     return { ok: true };

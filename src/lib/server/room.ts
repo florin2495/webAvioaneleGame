@@ -11,9 +11,11 @@ import {
   type Seat,
 } from "@/lib/game";
 import type { PublicPlayer, RoomState } from "@/lib/types";
+import { kickRemainingMs } from "@/lib/kick";
 import { hashToken } from "./crypto";
 import { db, PLAYER_COLUMNS, ROOM_COLUMNS, T, type PlayerRow, type RoomRow } from "./db";
 import { fail } from "./http";
+import { enforceExpiredKicks } from "./membership";
 
 const GONE = `Camera nu există sau a fost închisă după ${minutesLabel(ROOM_IDLE_MINUTES)} de inactivitate.`;
 
@@ -59,7 +61,10 @@ export async function touchRoom(roomId: string, extra: Record<string, unknown> =
 export async function requireMember(req: Request, code: string): Promise<{ room: RoomRow; player: PlayerRow }> {
   const token = req.headers.get("x-player-token");
   if (!token || token.length > 200) fail(401, "Nu ești în această cameră.");
-  const room = await getRoomByCode(code);
+  let room = await getRoomByCode(code);
+  // Lazy enforcement of expired pending kicks (no timers on serverless). Runs before the
+  // membership check, so a player who was just removed gets the usual 401.
+  if (await enforceExpiredKicks(room)) room = await getRoomByCode(code);
   const { data, error } = await db()
     .from(T.players)
     .select(PLAYER_COLUMNS)
@@ -145,12 +150,13 @@ export function sortMembers(players: PlayerRow[]): PlayerRow[] {
   return [...players].sort((a, b) => (a.seat ?? 9) - (b.seat ?? 9));
 }
 
-const toPublic = (p: PlayerRow): PublicPlayer => ({
+const toPublic = (p: PlayerRow, now: number): PublicPlayer => ({
   id: p.id,
   nickname: p.nickname,
   isHost: p.is_host,
   ready: p.ready,
   seat: p.seat,
+  kickRemainingMs: kickRemainingMs(p.kick_requested_at, now),
 });
 
 async function revealRound(roomId: string, round: number, players: PlayerRow[]): Promise<Partial<Record<Seat, Plane[]>>> {
@@ -173,6 +179,7 @@ export async function buildState(room: RoomRow, me: PlayerRow): Promise<RoomStat
   const reveal = room.status === "finished" ? await revealRound(room.id, room.round, players) : null;
   const progress = replay(moves, room.round, room.planes_count);
   const playing = room.status === "playing";
+  const now = Date.now();
 
   return {
     room: {
@@ -189,8 +196,8 @@ export async function buildState(room: RoomRow, me: PlayerRow): Promise<RoomStat
       pending: playing ? progress.pending : null,
       downed: progress.downed,
     },
-    players: sortMembers(players).map(toPublic),
-    me: toPublic(me),
+    players: sortMembers(players).map((p) => toPublic(p, now)),
+    me: toPublic(me, now),
     myPlanes,
     moves: room.status === "lobby" ? [] : moves,
     reveal,
@@ -205,5 +212,12 @@ export async function finishGame(roomId: string, winnerId: string | null): Promi
     .update({ status: "finished", winner_player_id: winnerId, updated_at: now, last_activity_at: now })
     .eq("id", roomId)
     .eq("status", "playing");
+  if (error) throw error;
+  await clearPendingKicks(roomId); // no game in progress any more: a pending kick would have been immediate
+}
+
+/** Clears every pending kick of the room (new game, back to the lobby, game over). */
+export async function clearPendingKicks(roomId: string): Promise<void> {
+  const { error } = await db().from(T.players).update({ kick_requested_at: null }).eq("room_id", roomId).not("kick_requested_at", "is", null);
   if (error) throw error;
 }

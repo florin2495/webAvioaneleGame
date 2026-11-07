@@ -1,4 +1,5 @@
 import { db, T } from "@/lib/server/db";
+import { notifyRoom } from "@/lib/server/broadcast";
 import { fail, handle, readJson } from "@/lib/server/http";
 import { removePlayer } from "@/lib/server/membership";
 import { requireHost, requireMember } from "@/lib/server/room";
@@ -17,12 +18,26 @@ export async function POST(req: Request, ctx: RouteContext<"/api/rooms/[code]/ki
 
     const { data: target, error } = await db()
       .from(T.players)
-      .select("id")
+      .select("id, seat")
       .eq("id", targetId)
       .eq("room_id", room.id)
       .maybeSingle();
     if (error && error.code !== "22P02") throw error; // 22P02 = malformed uuid
     if (!target) fail(404, "Jucătorul nu mai e în cameră.");
+
+    // Game in progress and the target is one of the two players: 10 s to press "Ignoră".
+    // Spectators (no seat), the lobby and finished games: removed at once, as before.
+    if (room.status === "playing" && target.seat) {
+      // Conditional, so a second kick does not reset the deadline.
+      const { error: pendingError } = await db()
+        .from(T.players)
+        .update({ kick_requested_at: new Date().toISOString() })
+        .eq("id", targetId)
+        .is("kick_requested_at", null);
+      if (pendingError) throw pendingError;
+      await notifyRoom(room.id, "kick_pending");
+      return { ok: true, pending: true };
+    }
 
     await removePlayer(room, targetId, "player_kicked");
     return { ok: true };

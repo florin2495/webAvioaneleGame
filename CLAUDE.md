@@ -20,6 +20,7 @@ Migrations are run by hand in the Supabase SQL editor, so this list is the sourc
 | Migration | Applied to the live DB | Notes |
 | --- | --- | --- |
 | `supabase/schema.sql` (initial) | yes (2026-11-06, verified) | `airplanes_rooms`, `airplanes_players`, `airplanes_boards`, `airplanes_moves` |
+| `supabase/migrations/001_pending_kick.sql` | **not yet applied** | `airplanes_players.kick_requested_at timestamptz` (pending kick during a game). Do not push the kick-with-ignore code before it is run. |
 
 Rules for schema changes:
 - New migration = new numbered file in `supabase/migrations/`, additive when possible, folded into `supabase/schema.sql` too.
