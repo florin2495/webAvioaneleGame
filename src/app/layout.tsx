@@ -16,6 +16,7 @@ export const metadata: Metadata = {
   title: "Avioanele",
   applicationName: "Avioanele",
   appleWebApp: { capable: true, title: "Avioanele", statusBarStyle: "default" },
+  other: { "apple-mobile-web-app-capable": "yes" },
   description: "Avioanele: jocul clasic în doi, pe telefon, cu spectatori.",
 };
 

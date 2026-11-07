@@ -21,8 +21,8 @@ export function PlayerList({ state, token, refresh }: { state: RoomState; token:
 
   async function kick(id: string, nickname: string, seated: boolean) {
     const midGame =
-      room.status === "playing" && seated ? " Are 10 s să refuze; dacă nu, jocul se termină și câștigi tu." : "";
-    if (!window.confirm(`Îl scoți pe ${nickname} din cameră?${midGame}`)) return;
+      room.status === "playing" && seated ? " Are 10 secunde să refuze; dacă nu, jocul se termină și câștigă celălalt jucător." : "";
+    if (!window.confirm(`Scoți jucătorul ${nickname} din cameră?${midGame}`)) return;
     setBusy(id);
     setError("");
     try {

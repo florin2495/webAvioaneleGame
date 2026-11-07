@@ -213,10 +213,9 @@ export async function finishGame(roomId: string, winnerId: string | null): Promi
     .eq("id", roomId)
     .eq("status", "playing");
   if (error) throw error;
-  await clearPendingKicks(roomId); // no game in progress any more: a pending kick would have been immediate
 }
 
-/** Clears every pending kick of the room (new game, back to the lobby, game over). */
+/** Clears every pending kick of the room (new game, back to the lobby). */
 export async function clearPendingKicks(roomId: string): Promise<void> {
   const { error } = await db().from(T.players).update({ kick_requested_at: null }).eq("room_id", roomId).not("kick_requested_at", "is", null);
   if (error) throw error;
