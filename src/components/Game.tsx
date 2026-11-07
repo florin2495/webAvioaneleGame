@@ -6,7 +6,7 @@ import { PREF_CONFIRM_SHOT, useBoolPref } from "@/lib/client/prefs";
 import { cellLabel, DIR_LABEL, other, planeCells, possibleDirs, type Dir, type Move, type Seat } from "@/lib/game";
 import type { PublicPlayer, RoomState } from "@/lib/types";
 import { Board, boardView } from "./Board";
-import { PlayerList } from "./PlayerList";
+import { OfflineBadge, PlayerList } from "./PlayerList";
 import { Button, Card, ErrorText } from "./ui";
 
 interface Props {
@@ -103,6 +103,7 @@ export function Game({ state, token, refresh }: Props) {
         <BoardTitle
           title={mySeat ? "Tabla mea" : `Tabla lui ${name(topSeat)}`}
           sub={`${name(bottomSeat)} a doborât ${room.downed[topSeat]}/${room.planesCount}`}
+          connected={mySeat ? undefined : bySeat(topSeat)?.connected}
         />
         <Board cells={top} label={mySeat ? "Tabla mea" : `Tabla lui ${name(topSeat)}`} dim={myTurn || !!myGuess} />
       </Card>
@@ -111,6 +112,7 @@ export function Game({ state, token, refresh }: Props) {
         <BoardTitle
           title={mySeat ? `Tabla lui ${name(bottomSeat)} — aici tragi` : `Tabla lui ${name(bottomSeat)}`}
           sub={`${mySeat ? "Ai doborât" : `${name(topSeat)} a doborât`} ${room.downed[bottomSeat]}/${room.planesCount}`}
+          connected={bySeat(bottomSeat)?.connected}
         />
         <Board cells={bottom} onCell={tapTarget} label={`Tabla lui ${name(bottomSeat)}`} dim={!myTurn && !myGuess && !!mySeat} />
 
@@ -151,10 +153,13 @@ export function Game({ state, token, refresh }: Props) {
   );
 }
 
-function BoardTitle({ title, sub }: { title: string; sub: string }) {
+function BoardTitle({ title, sub, connected }: { title: string; sub: string; connected?: boolean }) {
   return (
     <div className="mb-2 flex items-baseline justify-between gap-2">
-      <h2 className="truncate font-bold">{title}</h2>
+      <span className="flex min-w-0 items-baseline gap-2">
+        <h2 className="truncate font-bold">{title}</h2>
+        <OfflineBadge connected={connected} />
+      </span>
       <span className="shrink-0 text-xs font-semibold text-zinc-500">{sub}</span>
     </div>
   );

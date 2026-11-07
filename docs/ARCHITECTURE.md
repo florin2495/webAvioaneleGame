@@ -26,7 +26,7 @@ Realtime Broadcast doar ca semnal de „refresh”, identitate prin token aleato
    jucătorii după propria scriere, deci din doi jucători care dau ready simultan, cel puțin unul vede ambele ready.
 5. **Plecare**: dacă un jucător pleacă (sau e scos) în timpul jocului, celălalt câștigă. Spectatorii vin și pleacă liber.
    În lobby, un spectator poate lua un loc liber (`/sit`).
-6. **Expirare leneșă**: lobby/terminat după 5 minute fără nimeni cu pagina deschisă, joc în desfășurare după 30 de minute.
+6. **Expirare leneșă**: lobby/terminat după 10 minute fără nimeni cu pagina deschisă, joc în desfășurare după 30 de minute.
    Fiecare pagină deschisă face polling la `/state` (15 s), care împrospătează `last_activity_at`.
 
 ## API (toate sub `/api/rooms`)

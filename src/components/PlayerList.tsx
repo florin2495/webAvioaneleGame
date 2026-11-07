@@ -12,6 +12,16 @@ function KickBadge({ remainingMs, state, refresh }: { remainingMs: number | null
   return <span className="text-xs font-semibold text-rose-600 dark:text-rose-400">iese în {seconds} s</span>;
 }
 
+/** Shown next to a member not seen for 45 s (phone in the background, closed tab, no network). */
+export function OfflineBadge({ connected }: { connected: boolean | undefined }) {
+  if (connected !== false) return null;
+  return (
+    <span className="shrink-0 rounded bg-zinc-200 px-1.5 text-[10px] font-semibold uppercase text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400">
+      deconectat
+    </span>
+  );
+}
+
 export function PlayerList({ state, token, refresh }: { state: RoomState; token: string; refresh: () => Promise<void> }) {
   const { players, me, room } = state;
   const canKick = room.hostPlayerId === me.id;
@@ -54,6 +64,7 @@ export function PlayerList({ state, token, refresh }: { state: RoomState; token:
                 {p.isHost && (
                   <span className="rounded bg-zinc-200 px-1.5 text-[10px] font-semibold uppercase dark:bg-zinc-800">host</span>
                 )}
+                <OfflineBadge connected={p.connected} />
               </span>
               <span className="flex shrink-0 items-center gap-2">
                 <KickBadge remainingMs={p.kickRemainingMs} state={state} refresh={refresh} />

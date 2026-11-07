@@ -11,6 +11,8 @@ export interface PublicPlayer {
   seat: Seat | null;
   /** Ms left of a pending host kick (10 s grace), null when none. Relative, so no clock skew. */
   kickRemainingMs: number | null;
+  /** Seen in the last 45 s (see lib/reconnect.ts). False = phone in the background, closed tab, no network. */
+  connected: boolean;
 }
 
 /** What GET /api/rooms/[code]/state returns to a member. Never contains the opponent's planes while playing. */

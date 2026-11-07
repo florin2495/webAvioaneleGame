@@ -28,7 +28,7 @@ export const SEATS = [1, 2] as const;
 export const MAX_MEMBERS = 4;
 export const NICKNAME_MAX = 10;
 /** Lobby / finished rooms close after this long with nobody having them open. */
-export const ROOM_IDLE_MINUTES = 5;
+export const ROOM_IDLE_MINUTES = 10;
 /** A game in progress survives longer (phones get locked while the other one thinks). */
 export const PLAYING_IDLE_MINUTES = 30;
 /** /state refreshes last_activity_at at most this often, to keep DB writes low. */

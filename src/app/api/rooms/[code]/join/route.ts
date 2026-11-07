@@ -1,25 +1,72 @@
-import { MAX_MEMBERS, NICKNAME_MAX, SEATS } from "@/lib/game";
+import { enforceExpiredKicks } from "@/lib/server/membership";
+import { MAX_MEMBERS, NICKNAME_MAX, SEATS, type Seat } from "@/lib/game";
+import { seatBusyMessage, seatClaim } from "@/lib/reconnect";
 import { notifyRoom } from "@/lib/server/broadcast";
-import { hashToken, newPlayerToken, verifyPassword } from "@/lib/server/crypto";
+import { hashDeviceId, hashToken, newPlayerToken, verifyPassword } from "@/lib/server/crypto";
 import { db, T } from "@/lib/server/db";
 import { cleanText, fail, handle, isUniqueViolation, readJson } from "@/lib/server/http";
-import { getRoomByCode, listPlayers, touchRoom } from "@/lib/server/room";
+import { getRoomByCode, touchRoom } from "@/lib/server/room";
 
-// POST /api/rooms/[code]/join  { nickname, password?, spectator? }
+interface MemberRow {
+  id: string;
+  nickname: string;
+  seat: Seat | null;
+  token_hash: string;
+  device_hash: string | null;
+  last_seen_at: string;
+}
+
+// POST /api/rooms/[code]/join  { nickname, password?, spectator?, deviceId? }
 // Takes a free seat while the room is in the lobby; otherwise (or on request) joins as a spectator.
+// A nickname that is already in the room reclaims that member (same player id, seat, ready flag and planes,
+// new token) when the request comes from the same device or the member has been disconnected for 45 s -
+// also mid-game.
 export async function POST(req: Request, ctx: RouteContext<"/api/rooms/[code]/join">) {
   return handle(async () => {
     const { code } = await ctx.params;
     const body = await readJson(req);
     const nickname = cleanText(body.nickname, "Nickname-ul", 1, NICKNAME_MAX);
-    const room = await getRoomByCode(code);
+    const deviceHash = hashDeviceId(body.deviceId);
+    // Enforce host kicks whose 10 s are over first, so a reclaim cannot undo an expired kick.
+    let room = await getRoomByCode(code);
+    if (await enforceExpiredKicks(room)) room = await getRoomByCode(code);
 
     if (room.password_hash) {
       const password = typeof body.password === "string" ? body.password : "";
       if (!(await verifyPassword(password, room.password_hash))) fail(403, "Parolă greșită.");
     }
 
-    const members = await listPlayers(room.id);
+    const { data: rows, error: rowsError } = await db()
+      .from(T.players)
+      .select("id, nickname, seat, token_hash, device_hash, last_seen_at")
+      .eq("room_id", room.id);
+    if (rowsError) throw rowsError;
+    const members = (rows ?? []) as MemberRow[];
+
+    const existing = members.find((p) => p.nickname.toLowerCase() === nickname.toLowerCase());
+    if (existing) {
+      if (seatClaim(existing, deviceHash, Date.now()) === "busy") fail(409, seatBusyMessage(existing.nickname));
+      const token = newPlayerToken();
+      // Conditional on the old token: two reclaims at once -> only one wins, the other gets a 409.
+      // Seat, ready flag and planes stay with the row; only a pending kick is dropped.
+      const { data, error } = await db()
+        .from(T.players)
+        .update({
+          token_hash: hashToken(token),
+          device_hash: deviceHash ?? existing.device_hash,
+          kick_requested_at: null,
+          last_seen_at: new Date().toISOString(),
+        })
+        .eq("id", existing.id)
+        .eq("token_hash", existing.token_hash)
+        .select("id");
+      if (error) throw error;
+      if (!data || data.length === 0) fail(409, "Locul tocmai a fost reluat de altcineva. Mai încearcă o dată.");
+      await touchRoom(room.id);
+      await notifyRoom(room.id, "player_rejoined");
+      return { code: room.code, playerId: existing.id, token, seat: existing.seat };
+    }
+
     if (members.length >= MAX_MEMBERS) fail(409, `Camera e plină (2 jucători + ${MAX_MEMBERS - 2} spectatori).`);
 
     const wantsSeat = body.spectator !== true && room.status === "lobby";
@@ -30,7 +77,7 @@ export async function POST(req: Request, ctx: RouteContext<"/api/rooms/[code]/jo
     for (const seat of [...freeSeats, null]) {
       const { data, error } = await db()
         .from(T.players)
-        .insert({ room_id: room.id, nickname, token_hash: hashToken(token), seat })
+        .insert({ room_id: room.id, nickname, token_hash: hashToken(token), device_hash: deviceHash, seat })
         .select("id, seat")
         .single();
       if (isUniqueViolation(error)) {
