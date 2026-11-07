@@ -10,6 +10,7 @@
 - Ask the user before pushing (= deploying), unless they explicitly say to deploy.
 - **Before every push, bump the patch version** in `package.json` (and `npm install --package-lock-only`).
   It is shown in-game next to "Setări".
+- Functions run in `fra1` (Frankfurt, `vercel.json` `{ "regions": ["fra1"] }`), next to the Supabase DB. Never remove it: the Vercel default `iad1` (Washington) makes every DB query cross the Atlantic (1-2 s per request instead of ~0.3 s).
 
 ## Database (Supabase project shared with Bingo)
 Same project as Bingo; every table here is prefixed `airplanes_` so the two games never touch each other's tables.
