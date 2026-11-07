@@ -6,7 +6,7 @@
 - GitHub: personal account **florin2495** only (repo `florin2495/webAvioaneleGame`, private). Never the work account.
   Local git identity is pinned in `.git/config`.
 - Vercel project is connected by the user by hand. Once it is, every push to `main` deploys to production
-  (domain: `airplanes.hailatat.icu`, listed on the hub `florin2495/hailataticu-hub`).
+  (served at `games.hailatat.icu/airplanes` via a multi-zones rewrite in the hub `florin2495/hailataticu-hub` to `web-avioanele-game.vercel.app/airplanes`; `basePath` is `/airplanes`, so client `fetch`/share URLs must add `NEXT_PUBLIC_BASE_PATH`).
 - Ask the user before pushing (= deploying), unless they explicitly say to deploy.
 - **Before every push, bump the patch version** in `package.json` (and `npm install --package-lock-only`).
   It is shown in-game next to "Setări".

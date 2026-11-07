@@ -18,6 +18,12 @@ export const metadata: Metadata = {
   appleWebApp: { capable: true, title: "Avioanele", statusBarStyle: "default" },
   other: { "apple-mobile-web-app-capable": "yes" },
   description: "Avioanele: jocul clasic în doi, pe telefon, cu spectatori.",
+  // metadata.icons URLs are not prefixed with basePath.
+  // Setting icons drops the automatic app/favicon.ico link, so it is listed here too.
+  icons: {
+    icon: [{ url: `${process.env.NEXT_PUBLIC_BASE_PATH ?? ""}/favicon.ico`, sizes: "48x48", type: "image/x-icon" }],
+    apple: [{ url: `${process.env.NEXT_PUBLIC_BASE_PATH ?? ""}/pwa-icon/apple`, sizes: "180x180", type: "image/png" }],
+  },
 };
 
 export const viewport: Viewport = {

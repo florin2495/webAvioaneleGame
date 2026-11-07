@@ -135,7 +135,7 @@ export function FeedbackButton({ compact = false }: { compact?: boolean }) {
                   </Button>
                 </div>
                 <a
-                  href="https://hailatat.icu/feedback"
+                  href="/feedback"
                   target="_blank"
                   rel="noopener noreferrer"
                   className="self-center text-xs font-semibold text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-300"
