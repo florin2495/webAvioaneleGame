@@ -22,21 +22,28 @@ describe("notes", () => {
     expect(cells.length).toBeLessThan(8);
   });
 
-  it("adds, picks up by tapping it, respects the max", () => {
+  it("adds, removes the identical plane, respects the max", () => {
     const p1 = { head: cell(0, 1), dir: "N" as const };
     const p2 = { head: cell(0, 6), dir: "N" as const };
-    let n = togglePlane(emptyNotes(), p1, p1.head, 1);
+    let n = togglePlane(emptyNotes(), p1, 1);
     expect(n.planes).toHaveLength(1);
-    n = togglePlane(n, p2, p2.head, 1);
+    n = togglePlane(n, p2, 1); // full
     expect(n.planes).toHaveLength(1);
-    n = togglePlane(n, p2, cell(1, 1), 1); // tapped a cell of p1
+    n = togglePlane(n, p1, 1); // same head + dir again
     expect(n.planes).toHaveLength(0);
+  });
+
+  it("a head can go on top of another drawn head (other direction)", () => {
+    const a = { head: cell(5, 5), dir: "N" as const };
+    const b = { head: cell(5, 5), dir: "E" as const };
+    const n = togglePlane(togglePlane(emptyNotes(), a, 3), b, 3);
+    expect(n.planes).toEqual([a, b]);
   });
 
   it("allows overlapping or invalid guesses", () => {
     const a = { head: cell(0, 1), dir: "N" as const };
     const b = { head: cell(1, 1), dir: "E" as const };
-    const n = togglePlane(togglePlane(emptyNotes(), a, a.head, 3), b, cell(5, 5), 3);
+    const n = togglePlane(togglePlane(emptyNotes(), a, 3), b, 3);
     expect(n.planes).toHaveLength(2);
   });
 

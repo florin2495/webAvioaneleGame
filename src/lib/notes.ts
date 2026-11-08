@@ -61,10 +61,13 @@ export function drawnCells(plane: Plane): number[] {
   return out;
 }
 
-/** Tapping a cell of a drawn plane picks that plane up; otherwise `plane` is added (up to `max` planes). */
-export function togglePlane(notes: Notes, plane: Plane, tapped: number, max: number): Notes {
-  const hit = notes.planes.findIndex((p) => drawnCells(p).includes(tapped));
-  if (hit >= 0) return { ...notes, planes: notes.planes.filter((_, i) => i !== hit) };
+/**
+ * Placing exactly the same plane again (same head, same direction) removes it; anything else is added
+ * (up to `max` planes), also on top of other drawn planes - guesses may overlap.
+ */
+export function togglePlane(notes: Notes, plane: Plane, max: number): Notes {
+  const same = notes.planes.findIndex((p) => p.head === plane.head && p.dir === plane.dir);
+  if (same >= 0) return { ...notes, planes: notes.planes.filter((_, i) => i !== same) };
   if (notes.planes.length >= max) return notes;
   return { ...notes, planes: [...notes.planes, plane] };
 }

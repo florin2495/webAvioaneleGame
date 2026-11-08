@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type ReactNode } from "react";
+import { useRef, useState, type ReactNode } from "react";
 import { api } from "@/lib/client/api";
 import { PREF_CONFIRM_SHOT, readPref, useBoolPref, writePref } from "@/lib/client/prefs";
 import { cellLabel, DIRS, DIR_LABEL, other, type Dir, type Move, type Seat } from "@/lib/game";
@@ -39,6 +39,7 @@ export function Game({ state, token, refresh }: Props) {
   const [confirmShot] = useBoolPref(PREF_CONFIRM_SHOT, false);
   const [selected, setSelected] = useState<number | null>(null);
   const [tool, setTool] = useState<Tool>("shoot");
+  const lastMark = useRef({ cell: -1, at: 0 });
   const [planeDir, setPlaneDir] = useState<Dir>("N");
   const noteKey = mySeat ? notesKey(room.code, room.round, me.id) : null;
   const [notesState, setNotesState] = useState<{ key: string | null; notes: Notes }>(() => ({
@@ -79,11 +80,16 @@ export function Game({ state, token, refresh }: Props) {
 
   function tapTarget(cell: number) {
     if (activeTool === "mark") {
+      // Debounce: a second tap on the same cell within 350 ms (double tap) is ignored, so it does not undo the X.
+      const now = Date.now();
+      const last = lastMark.current;
+      if (last.cell === cell && now - last.at < MARK_DEBOUNCE_MS) return;
+      lastMark.current = { cell, at: now };
       if (!known.has(cell)) updateNotes(toggleMark(notes, cell));
       return;
     }
     if (activeTool === "plane") {
-      updateNotes(togglePlane(notes, { head: cell, dir: planeDir }, cell, room.planesCount));
+      updateNotes(togglePlane(notes, { head: cell, dir: planeDir }, room.planesCount));
       return;
     }
     if (!myTurn || busy || known.has(cell)) return;
@@ -232,6 +238,8 @@ function lastText(m: Move | undefined, name: (s: Seat) => string): string {
   return `${who}: ${where} cap! `;
 }
 
+const MARK_DEBOUNCE_MS = 350;
+
 type Tool = "shoot" | "mark" | "plane";
 
 function NoteTools({
@@ -289,7 +297,7 @@ function NoteTools({
           </div>
           <p className="mt-2 text-xs text-zinc-500">
             Alege direcția capului, apoi atinge celula unde crezi că e capul avionului adversarului (poate fi și o poziție greșită).
-            Atinge un avion desenat ca să-l ștergi. {notes.planes.length}/{planesCount}.
+            Atinge aceeași celulă cu aceeași direcție ca să-l ștergi. {notes.planes.length}/{planesCount}.
           </p>
         </>
       )}

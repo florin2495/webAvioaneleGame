@@ -22,7 +22,7 @@ Migrations are run by hand in the Supabase SQL editor, so this list is the sourc
 | `supabase/schema.sql` (initial) | yes (2026-11-06, verified) | `airplanes_rooms`, `airplanes_players`, `airplanes_boards`, `airplanes_moves` |
 | `supabase/migrations/001_pending_kick.sql` | yes (2026-11-07, verified) | `airplanes_players.kick_requested_at timestamptz` (pending kick during a game). Do not push the kick-with-ignore code before it is run. |
 | `supabase/migrations/002_reconnect.sql` | yes (2026-11-07, verified: service role 200, anon 401) | `airplanes_players.last_seen_at`, `device_hash` + index (rejoin the same seat). Do not push the reconnect code before it is run. |
-| `supabase/migrations/003_spectator_queue.sql` | **no, to be run** | `airplanes_players.queued_at timestamptz` (spectator queue "Intră la runda următoare"). Every query selects this column (`PLAYER_COLUMNS`), so do not push before it is run. |
+| `supabase/migrations/003_spectator_queue.sql` | yes (2026-11-08, verified by effect) | `airplanes_players.queued_at timestamptz` (spectator queue "Intră la runda următoare"). Every query selects this column (`PLAYER_COLUMNS`), so do not push before it is run. |
 
 Rules for schema changes:
 - New migration = new numbered file in `supabase/migrations/`, additive when possible, folded into `supabase/schema.sql` too.
