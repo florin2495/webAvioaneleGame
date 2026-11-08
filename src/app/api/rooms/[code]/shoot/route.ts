@@ -43,7 +43,10 @@ export async function POST(req: Request, ctx: RouteContext<"/api/rooms/[code]/sh
     } else {
       after(() => touchRoom(room.id, { updated_at: new Date().toISOString() }));
     }
-    after(() => notifyRoom(room.id, "shot", player.id));
+    // A regular shot travels inside the broadcast; the last one only signals "finished" (the reveal
+    // must come from the authenticated /state).
+    if (after_.winner) after(() => notifyRoom(room.id, "finished", player.id));
+    else after(() => notifyRoom(room.id, "shot", player.id, { move, round: room.round }));
 
     const state = await buildState(next, player, { ...round, moves: [...moves, move] });
     return { result, won: after_.winner === seat, state };

@@ -17,6 +17,7 @@ import { PREF_NICKNAME, useStringPref, writePref } from "@/lib/client/prefs";
 import { useKickCountdown } from "@/lib/client/kick";
 import { realtimeClient } from "@/lib/client/realtime";
 import { minutesLabel, NICKNAME_MAX, ROOM_IDLE_MINUTES } from "@/lib/game";
+import { applyShot } from "@/lib/liveShot";
 import type { RoomState } from "@/lib/types";
 import { FeedbackButton } from "./FeedbackButton";
 import { Game } from "./Game";
@@ -144,6 +145,10 @@ function useRoomState(code: string, token: string) {
   // Realtime: the server broadcasts a bare "refresh" signal; we re-fetch authenticated state.
   const roomId = state?.room.id;
   const myId = state?.me.id;
+  const stateRef = useRef(state);
+  useEffect(() => {
+    stateRef.current = state;
+  }, [state]);
   useEffect(() => {
     const client = realtimeClient();
     if (!roomId || !client) return;
@@ -151,9 +156,17 @@ function useRoomState(code: string, token: string) {
     let retry: number | undefined;
     const channel = client
       .channel(`airplanes-room:${roomId}`)
-      .on("broadcast", { event: "refresh" }, (msg: { payload?: { by?: string | null } }) => {
+      .on("broadcast", { event: "refresh" }, (msg: { payload?: { by?: string | null; move?: unknown; round?: number } }) => {
+        const p = msg.payload ?? {};
         // Our own move: the answer to it already carried the new state.
-        if (msg.payload?.by && msg.payload.by === myId) return;
+        if (p.by && p.by === myId) return;
+        // A regular shot comes with the broadcast: apply it, no request. Anything else (or a gap) -> /state.
+        const current = stateRef.current;
+        const next = current && p.move !== undefined && typeof p.round === "number" ? applyShot(current, p.round, p.move) : null;
+        if (next) {
+          if (next !== current) apply(next);
+          return;
+        }
         void refresh();
       })
       .subscribe((status) => {
@@ -168,7 +181,7 @@ function useRoomState(code: string, token: string) {
       window.clearTimeout(retry);
       void client.removeChannel(channel);
     };
-  }, [roomId, myId, refresh, reconnectKey]);
+  }, [roomId, myId, refresh, apply, reconnectKey]);
 
   return { state, error, missing, refresh, apply };
 }
