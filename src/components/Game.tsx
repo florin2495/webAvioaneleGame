@@ -2,10 +2,20 @@
 
 import { useState, type ReactNode } from "react";
 import { api } from "@/lib/client/api";
-import { PREF_CONFIRM_SHOT, useBoolPref } from "@/lib/client/prefs";
-import { cellLabel, DIR_LABEL, other, planeCells, possibleDirs, type Dir, type Move, type Seat } from "@/lib/game";
+import { PREF_CONFIRM_SHOT, readPref, useBoolPref, writePref } from "@/lib/client/prefs";
+import { cellLabel, DIRS, DIR_LABEL, other, type Dir, type Move, type Seat } from "@/lib/game";
+import {
+  drawnCells,
+  emptyNotes,
+  missedNotedCells,
+  notesKey,
+  parseNotes,
+  toggleMark,
+  togglePlane,
+  type Notes,
+} from "@/lib/notes";
 import type { PublicPlayer, RoomState } from "@/lib/types";
-import { Board, boardView } from "./Board";
+import { Board, boardView, planeMap } from "./Board";
 import { OfflineBadge, PlayerList } from "./PlayerList";
 import { Button, Card, ErrorText } from "./ui";
 
@@ -28,19 +38,29 @@ export function Game({ state, token, refresh }: Props) {
 
   const [confirmShot] = useBoolPref(PREF_CONFIRM_SHOT, false);
   const [selected, setSelected] = useState<number | null>(null);
-  const [guessDir, setGuessDir] = useState<Dir | null>(null);
+  const [tool, setTool] = useState<Tool>("shoot");
+  const [planeDir, setPlaneDir] = useState<Dir>("N");
+  const noteKey = mySeat ? notesKey(room.code, room.round, me.id) : null;
+  const [notesState, setNotesState] = useState<{ key: string | null; notes: Notes }>(() => ({
+    key: noteKey,
+    notes: noteKey ? parseNotes(readPref(noteKey)) : emptyNotes(),
+  }));
+  // A new round means other notes: read them from storage again.
+  const notes = notesState.key === noteKey ? notesState.notes : noteKey ? parseNotes(readPref(noteKey)) : emptyNotes();
+  function updateNotes(next: Notes) {
+    setNotesState({ key: noteKey, notes: next });
+    if (noteKey) writePref(noteKey, JSON.stringify(next));
+  }
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [winnerSeen, setWinnerSeen] = useState<string | null>(null);
 
-  const myTurn = room.status === "playing" && mySeat !== null && room.turnSeat === mySeat && !room.pending;
-  const myGuess = room.status === "playing" && mySeat !== null && room.pending?.seat === mySeat ? room.pending : null;
+  const playing = room.status === "playing";
+  const myTurn = playing && mySeat !== null && room.turnSeat === mySeat;
+  const canNote = playing && mySeat !== null;
+  const activeTool: Tool = canNote ? tool : "shoot";
 
-  const known = new Set(
-    moves
-      .filter((m) => m.seat === topSeat)
-      .flatMap((m) => (m.kind === "shot" ? [m.cell] : m.result === "correct" && m.dir ? (planeCells({ head: m.cell, dir: m.dir }) ?? []) : [])),
-  );
+  const known = new Set(moves.filter((m) => m.seat === topSeat).map((m) => m.cell));
 
   async function shoot(cell: number) {
     setBusy(true);
@@ -57,22 +77,15 @@ export function Game({ state, token, refresh }: Props) {
     }
   }
 
-  async function guess(dir: Dir) {
-    setBusy(true);
-    setError("");
-    try {
-      await api(`/api/rooms/${room.code}/guess`, { token, body: { dir } });
-      setGuessDir(null);
-      await refresh();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Eroare.");
-      await refresh();
-    } finally {
-      setBusy(false);
-    }
-  }
-
   function tapTarget(cell: number) {
+    if (activeTool === "mark") {
+      if (!known.has(cell)) updateNotes(toggleMark(notes, cell));
+      return;
+    }
+    if (activeTool === "plane") {
+      updateNotes(togglePlane(notes, { head: cell, dir: planeDir }, cell, room.planesCount));
+      return;
+    }
     if (!myTurn || busy || known.has(cell)) return;
     if (confirmShot) setSelected(selected === cell ? null : cell);
     else void shoot(cell);
@@ -84,13 +97,19 @@ export function Game({ state, token, refresh }: Props) {
 
   const bottomPlanes = finished ? (reveal?.[bottomSeat] ?? null) : null;
   const bottom = boardView(bottomSeat, moves, bottomPlanes);
-  bottom.forEach((v, i) => {
-    v.clickable = myTurn && !known.has(i) && !busy;
-    v.selected = selected === i;
-  });
-  if (myGuess && guessDir) {
-    for (const c of planeCells({ head: myGuess.head, dir: guessDir }) ?? []) bottom[c].preview = true;
+  if (canNote) {
+    for (const c of notes.marks) bottom[c].cross = true;
+    for (const p of notes.planes) drawnCells(p).forEach((c, i) => (bottom[c].guess = i === 0 ? "head" : "body"));
+  } else if (finished && mySeat && bottomPlanes) {
+    // Result card: noted cells that turned out to be empty get an X.
+    const real = new Set(planeMap(bottomPlanes).keys());
+    const shot = new Set(moves.filter((m) => m.seat === mySeat).map((m) => m.cell));
+    for (const c of missedNotedCells(notes, shot, real)) bottom[c].cross = true;
   }
+  bottom.forEach((v, i) => {
+    v.clickable = canNote && !known.has(i) && (activeTool !== "shoot" || (myTurn && !busy));
+    v.selected = activeTool === "shoot" && selected === i;
+  });
 
   const winner = players.find((p) => p.id === room.winnerPlayerId) ?? null;
   const showWinner = finished && winnerSeen !== `${room.round}`;
@@ -105,26 +124,36 @@ export function Game({ state, token, refresh }: Props) {
           sub={`${name(bottomSeat)} a doborât ${room.downed[topSeat]}/${room.planesCount}`}
           connected={mySeat ? undefined : bySeat(topSeat)?.connected}
         />
-        <Board cells={top} label={mySeat ? "Tabla mea" : `Tabla lui ${name(topSeat)}`} dim={myTurn || !!myGuess} />
+        <Board cells={top} label={mySeat ? "Tabla mea" : `Tabla lui ${name(topSeat)}`} dim={myTurn} />
       </Card>
 
-      <Card className={`p-3 ${myTurn || myGuess ? "ring-2 ring-indigo-500" : ""}`}>
+      <Card className={`p-3 ${myTurn ? "ring-2 ring-indigo-500" : ""}`}>
         <BoardTitle
           title={mySeat ? `Tabla lui ${name(bottomSeat)} — aici tragi` : `Tabla lui ${name(bottomSeat)}`}
           sub={`${mySeat ? "Ai doborât" : `${name(topSeat)} a doborât`} ${room.downed[bottomSeat]}/${room.planesCount}`}
           connected={bySeat(bottomSeat)?.connected}
         />
-        <Board cells={bottom} onCell={tapTarget} label={`Tabla lui ${name(bottomSeat)}`} dim={!myTurn && !myGuess && !!mySeat} />
+        <Board cells={bottom} onCell={tapTarget} label={`Tabla lui ${name(bottomSeat)}`} dim={!myTurn && !!mySeat} />
 
-        {confirmShot && myTurn && (
+        {canNote && (
+          <NoteTools
+            tool={tool}
+            onTool={setTool}
+            dir={planeDir}
+            onDir={setPlaneDir}
+            notes={notes}
+            planesCount={room.planesCount}
+            onClearMarks={() => updateNotes({ ...notes, marks: [] })}
+            onClearPlanes={() => updateNotes({ ...notes, planes: [] })}
+          />
+        )}
+
+        {confirmShot && myTurn && activeTool === "shoot" && (
           <Button className="mt-3 w-full" onClick={() => selected !== null && void shoot(selected)} disabled={selected === null || busy}>
             {selected === null ? "Alege o celulă" : `Trage în ${cellLabel(selected)}`}
           </Button>
         )}
 
-        {myGuess && (
-          <GuessPanel head={myGuess.head} dir={guessDir} onDir={setGuessDir} onConfirm={guess} busy={busy} />
-        )}
         <div className="mt-2">
           <ErrorText>{error}</ErrorText>
         </div>
@@ -175,15 +204,9 @@ function StatusBanner({ state, name }: { state: RoomState; name: (s: Seat) => st
     const w = state.players.find((p) => p.id === room.winnerPlayerId);
     text = w ? (w.id === me.id ? "🏆 Ai câștigat!" : `🏆 ${w.nickname} a câștigat.`) : "Jocul s-a terminat.";
     tone = "bg-amber-100 text-amber-900 dark:bg-amber-950 dark:text-amber-200";
-  } else if (room.pending) {
-    const mine = room.pending.seat === me.seat;
-    text = mine
-      ? `💥 Cap lovit în ${cellLabel(room.pending.head)}! Avionul e doborât. Ghicește-i forma ca să-l vezi și să mai tragi.`
-      : `💥 ${name(room.pending.seat)} a lovit un cap și ghicește forma avionului.`;
-    tone = mine ? "bg-indigo-600 text-white" : tone;
   } else {
     const mine = room.turnSeat !== null && room.turnSeat === me.seat;
-    const again = last && last.seat === room.turnSeat && (last.result === "hit" || last.result === "correct");
+    const again = last && last.seat === room.turnSeat && (last.result === "hit" || last.result === "head");
     const prefix = lastText(last, name);
     if (mine) {
       text = `${prefix}${again ? "Mai tragi o dată!" : "E rândul tău. Trage pe tabla de jos."}`;
@@ -203,49 +226,87 @@ function StatusBanner({ state, name }: { state: RoomState; name: (s: Seat) => st
 function lastText(m: Move | undefined, name: (s: Seat) => string): string {
   if (!m) return "";
   const who = name(m.seat);
-  if (m.kind === "guess") return m.result === "correct" ? `${who} a ghicit forma! ` : `${who} n-a ghicit forma. `;
   const where = cellLabel(m.cell);
-  if (m.result === "miss") return `${who}: ${where} apă. `;
+  if (m.result === "miss") return `${who}: ${where} aer. `;
   if (m.result === "hit") return `${who}: ${where} lovit! `;
   return `${who}: ${where} cap! `;
 }
 
-function GuessPanel({
-  head,
+type Tool = "shoot" | "mark" | "plane";
+
+function NoteTools({
+  tool,
+  onTool,
   dir,
   onDir,
-  onConfirm,
-  busy,
+  notes,
+  planesCount,
+  onClearMarks,
+  onClearPlanes,
 }: {
-  head: number;
-  dir: Dir | null;
+  tool: Tool;
+  onTool: (t: Tool) => void;
+  dir: Dir;
   onDir: (d: Dir) => void;
-  onConfirm: (d: Dir) => void;
-  busy: boolean;
+  notes: Notes;
+  planesCount: number;
+  onClearMarks: () => void;
+  onClearPlanes: () => void;
 }) {
-  const dirs = possibleDirs(head);
+  const toggle = (t: Exclude<Tool, "shoot">) => onTool(tool === t ? "shoot" : t);
+  const btn = (active: boolean) =>
+    `min-h-10 rounded-lg px-2 text-sm font-semibold ${active ? "bg-indigo-600 text-white" : "bg-zinc-200 dark:bg-zinc-800"}`;
   return (
-    <div className="mt-3 rounded-xl border-2 border-indigo-500 p-3">
-      <p className="text-sm font-semibold">Cum stă avionul cu capul în {cellLabel(head)}? Încotro arată capul?</p>
-      <div className="mt-2 grid grid-cols-4 gap-1">
-        {(["N", "E", "S", "W"] as Dir[]).map((d) => (
-          <button
-            key={d}
-            type="button"
-            disabled={!dirs.includes(d) || busy}
-            onClick={() => onDir(d)}
-            className={`min-h-10 rounded-lg text-xs font-semibold disabled:opacity-30 ${
-              dir === d ? "bg-indigo-600 text-white" : "bg-zinc-200 dark:bg-zinc-800"
-            }`}
-          >
-            {DIR_LABEL[d]}
-          </button>
-        ))}
+    <div className="mt-3 rounded-xl border border-zinc-200 p-2 dark:border-zinc-800">
+      <div className="grid grid-cols-2 gap-1">
+        <button type="button" aria-pressed={tool === "mark"} onClick={() => toggle("mark")} className={btn(tool === "mark")}>
+          ✕ Marchez X
+        </button>
+        <button type="button" aria-pressed={tool === "plane"} onClick={() => toggle("plane")} className={btn(tool === "plane")}>
+          ✈ Poz. avion
+        </button>
       </div>
-      <p className="mt-2 text-xs text-zinc-500">Forma aleasă apare cu galben pe tablă. Ghicit = vezi avionul și mai tragi. Greșit = tura trece.</p>
-      <Button className="mt-2 w-full" disabled={!dir || busy} onClick={() => dir && onConfirm(dir)}>
-        {busy ? "…" : dir ? "Confirmă forma" : "Alege o direcție"}
-      </Button>
+      {tool === "mark" && (
+        <p className="mt-2 text-xs text-zinc-500">
+          Atinge celulele unde nu mai vrei să tragi. Atinge din nou ca să scoți X-ul. Notițele sunt doar ale tale.
+        </p>
+      )}
+      {tool === "plane" && (
+        <>
+          <div className="mt-2 grid grid-cols-4 gap-1" role="radiogroup" aria-label="Direcția capului">
+            {DIRS.map((d) => (
+              <button
+                key={d}
+                type="button"
+                role="radio"
+                aria-checked={dir === d}
+                onClick={() => onDir(d)}
+                className={`min-h-10 rounded-lg text-xs font-semibold ${dir === d ? "bg-teal-600 text-white" : "bg-zinc-200 dark:bg-zinc-800"}`}
+              >
+                {DIR_LABEL[d]}
+              </button>
+            ))}
+          </div>
+          <p className="mt-2 text-xs text-zinc-500">
+            Alege direcția capului, apoi atinge celula unde crezi că e capul avionului adversarului (poate fi și o poziție greșită).
+            Atinge un avion desenat ca să-l ștergi. {notes.planes.length}/{planesCount}.
+          </p>
+        </>
+      )}
+      {(notes.marks.length > 0 || notes.planes.length > 0) && (
+        <div className="mt-2 flex gap-3 text-xs">
+          {notes.marks.length > 0 && (
+            <button type="button" onClick={onClearMarks} className="min-h-8 font-semibold text-zinc-600 underline dark:text-zinc-400">
+              Șterge X-urile
+            </button>
+          )}
+          {notes.planes.length > 0 && (
+            <button type="button" onClick={onClearPlanes} className="min-h-8 font-semibold text-zinc-600 underline dark:text-zinc-400">
+              Șterge avioanele
+            </button>
+          )}
+        </div>
+      )}
     </div>
   );
 }
@@ -259,10 +320,12 @@ function Legend() {
   );
   return (
     <div className="flex flex-wrap justify-center gap-x-4 gap-y-1 text-xs text-zinc-600 dark:text-zinc-400">
-      {item("bg-white border border-zinc-300 dark:bg-zinc-900 dark:border-zinc-700", <span className="h-1 w-1 rounded-full bg-zinc-500" />, "apă")}
+      {item("bg-white border border-zinc-300 dark:bg-zinc-900 dark:border-zinc-700", <span className="h-1 w-1 rounded-full bg-zinc-500" />, "aer")}
       {item("bg-rose-500 text-white", "✕", "lovit")}
       {item("bg-zinc-900", "💥", "cap (doborât)")}
       {item("bg-indigo-400 dark:bg-indigo-700", "", "avion")}
+      {item("bg-white border border-zinc-300 text-zinc-700 dark:bg-zinc-900 dark:border-zinc-700 dark:text-zinc-200", "✕", "notiță X")}
+      {item("bg-teal-300 dark:bg-teal-800", "", "avion presupus")}
     </div>
   );
 }
@@ -278,9 +341,7 @@ function MoveLog({ moves, name }: { moves: Move[]; name: (s: Seat) => string }) 
             <li key={m.seq} className="flex justify-between gap-2 border-b border-zinc-100 py-1 last:border-0 dark:border-zinc-900">
               <span className="truncate">{name(m.seat)}</span>
               <span className="shrink-0 font-mono">
-                {m.kind === "shot"
-                  ? `${cellLabel(m.cell)} · ${{ miss: "apă", hit: "lovit", head: "cap 💥" }[m.result as "miss"]}`
-                  : `formă ${DIR_LABEL[m.dir as Dir]} · ${m.result === "correct" ? "ghicit ✓" : "greșit ✕"}`}
+                {`${cellLabel(m.cell)} · ${{ miss: "aer", hit: "lovit", head: "cap 💥" }[m.result]}`}
               </span>
             </li>
           ))}

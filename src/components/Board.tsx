@@ -7,8 +7,12 @@ export interface CellView {
   plane?: "body" | "head";
   /** Outcome of a shot at this cell. */
   shot?: "miss" | "hit" | "head";
-  /** Highlight: plane being placed / shape being guessed. */
+  /** Highlight: plane being placed. */
   preview?: boolean;
+  /** Private note: part of the plane the viewer thinks is here (drawn by hand, may be wrong). */
+  guess?: "body" | "head";
+  /** Private note: an X ("do not shoot here"), also shown at the end for noted cells that turned out empty. */
+  cross?: boolean;
   /** The most recent shot on this board. */
   last?: boolean;
   /** Picked, waiting for confirmation. */
@@ -75,6 +79,7 @@ function Row({ r, cells, onCell }: { r: number; cells: CellView[]; onCell?: (cel
             {v.shot === "miss" && <span className="h-1.5 w-1.5 rounded-full bg-zinc-500 dark:bg-zinc-400" />}
             {v.shot === "hit" && <span className="text-white">✕</span>}
             {v.shot === "head" && <span aria-hidden>💥</span>}
+            {v.cross && !v.shot && <span className="text-zinc-700 dark:text-zinc-200">✕</span>}
             {v.last && <span className="pointer-events-none absolute inset-0 ring-2 ring-inset ring-amber-400" />}
             {v.selected && <span className="pointer-events-none absolute inset-0 animate-pulse ring-[3px] ring-inset ring-indigo-500" />}
           </button>
@@ -88,6 +93,8 @@ function cellClass(v: CellView): string {
   if (v.shot === "head") return "bg-zinc-900 dark:bg-black";
   if (v.shot === "hit") return v.plane ? "bg-rose-600" : "bg-rose-500";
   if (v.preview) return v.plane === "head" ? "bg-amber-500" : "bg-amber-300 dark:bg-amber-600";
+  if (v.guess === "head") return "bg-teal-600 dark:bg-teal-500";
+  if (v.guess === "body") return "bg-teal-300 dark:bg-teal-800";
   if (v.plane === "head") return "bg-indigo-700 dark:bg-indigo-500";
   if (v.plane === "body") return "bg-indigo-400 dark:bg-indigo-700";
   return "bg-white dark:bg-zinc-900";
@@ -96,7 +103,9 @@ function cellClass(v: CellView): string {
 function describe(v: CellView): string {
   if (v.shot === "head") return ", cap doborât";
   if (v.shot === "hit") return ", lovit";
-  if (v.shot === "miss") return ", ratat";
+  if (v.shot === "miss") return ", aer";
+  if (v.cross) return ", marcat cu X";
+  if (v.guess) return ", avion presupus";
   if (v.plane === "head") return ", capul avionului";
   if (v.plane) return ", avion";
   return "";
@@ -110,22 +119,17 @@ export function planeMap(planes: Plane[]): Map<number, "head" | "body"> {
 }
 
 /**
- * The view of `seat`'s board: shots fired at it by the other seat, the planes the viewer may see
- * (`visiblePlanes`), plus planes revealed by right shape guesses.
+ * The view of `seat`'s board: shots fired at it by the other seat and the planes the viewer may see
+ * (`visiblePlanes`).
  */
 export function boardView(seat: Seat, moves: Move[], visiblePlanes: Plane[] | null): CellView[] {
   const shooter = other(seat);
   const cells: CellView[] = Array.from({ length: CELLS }, () => ({}));
   const known = planeMap(visiblePlanes ?? []);
-  for (const m of moves) {
-    if (m.seat === shooter && m.kind === "guess" && m.result === "correct" && m.dir) {
-      planeMap([{ head: m.cell, dir: m.dir }]).forEach((part, c) => known.set(c, part));
-    }
-  }
   known.forEach((part, c) => (cells[c].plane = part));
   let last: Move | null = null;
   for (const m of moves) {
-    if (m.seat !== shooter || m.kind !== "shot") continue;
+    if (m.seat !== shooter) continue;
     cells[m.cell].shot = m.result as CellView["shot"];
     last = m;
   }

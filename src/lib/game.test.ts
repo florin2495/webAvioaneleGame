@@ -3,7 +3,6 @@ import {
   layoutError,
   placementError,
   planeCells,
-  possibleDirs,
   randomLayout,
   replay,
   shotError,
@@ -80,12 +79,6 @@ describe("placement", () => {
       for (let i = 0; i < 50; i++) expect(layoutError(randomLayout(count), count)).toBeNull();
     }
   });
-
-  it("possibleDirs only lists shapes that fit", () => {
-    expect(possibleDirs(cell(0, 0))).toEqual([]);
-    expect(possibleDirs(cell(0, 5))).toEqual(["N"]);
-    expect(possibleDirs(cell(5, 5)).sort()).toEqual(["E", "N", "S", "W"]);
-  });
 });
 
 describe("shots and turns", () => {
@@ -94,16 +87,7 @@ describe("shots and turns", () => {
     { head: cell(0, 6), dir: "N" },
   ];
   let seq = 0;
-  const shot = (seat: 1 | 2, c: number): Move => ({ seq: ++seq, kind: "shot", seat, cell: c, dir: null, result: shotResult(planes, c) });
-  const guess = (seat: 1 | 2, head: number, dir: Plane["dir"], right: boolean): Move => ({
-    seq: ++seq,
-    kind: "guess",
-    seat,
-    cell: head,
-    dir,
-    result: right ? "correct" : "wrong",
-  });
-
+  const shot = (seat: 1 | 2, c: number): Move => ({ seq: ++seq, seat, cell: c, result: shotResult(planes, c) });
   it("classifies shots", () => {
     expect(shotResult(planes, cell(0, 1))).toBe("head");
     expect(shotResult(planes, cell(3, 2))).toBe("hit");
@@ -122,48 +106,26 @@ describe("shots and turns", () => {
     expect(replay([shot(1, cell(3, 2)), shot(1, cell(2, 1))], 1, 2).turn).toBe(1);
   });
 
-  it("a head hit downs the plane and asks the shooter to guess", () => {
+  it("a head hit downs the plane and the shooter keeps shooting", () => {
     seq = 0;
     const p = replay([shot(1, cell(0, 1))], 1, 2);
     expect(p.downed[2]).toBe(1);
-    expect(p.pending).toEqual({ seat: 1, head: cell(0, 1) });
-    expect(shotError(p, 1, cell(5, 5))).toMatch(/ghicește/);
-    expect(shotError(p, 2, cell(5, 5))).toMatch(/Adversarul/);
-  });
-
-  it("a right guess reveals the plane and keeps the turn", () => {
-    seq = 0;
-    const p = replay([shot(1, cell(0, 1)), guess(1, cell(0, 1), "N", true)], 1, 2);
-    expect(p.pending).toBeNull();
     expect(p.turn).toBe(1);
-    expect(p.known[2].size).toBe(8);
-    expect(shotError(p, 1, cell(3, 2))).toMatch(/deja/);
+    expect(shotError(p, 1, cell(5, 5))).toBeNull();
+    expect(shotError(p, 2, cell(5, 5))).toMatch(/tura/);
   });
 
-  it("a wrong guess passes the turn, the plane stays down", () => {
+  it("downing the last plane wins at once", () => {
     seq = 0;
-    const p = replay([shot(1, cell(0, 1)), guess(1, cell(0, 1), "S", false)], 1, 2);
-    expect(p.turn).toBe(2);
-    expect(p.downed[2]).toBe(1);
-    expect(p.known[2].size).toBe(1);
-  });
-
-  it("downing the last plane wins at once, without a guess", () => {
-    seq = 0;
-    const p = replay(
-      [shot(1, cell(0, 1)), guess(1, cell(0, 1), "N", true), shot(1, cell(0, 6))],
-      1,
-      2,
-    );
+    const p = replay([shot(1, cell(0, 1)), shot(1, cell(0, 6))], 1, 2);
     expect(p.winner).toBe(1);
-    expect(p.pending).toBeNull();
     expect(shotError(p, 1, cell(9, 9))).toMatch(/terminat/);
   });
 
   it("nothing blocks a shot next to a known plane", () => {
     seq = 0;
-    const p = replay([shot(1, cell(0, 1)), guess(1, cell(0, 1), "N", true)], 1, 2);
-    expect(shotError(p, 1, cell(0, 3))).toBeNull(); // touches the revealed plane
+    const p = replay([shot(1, cell(0, 1))], 1, 2);
+    expect(shotError(p, 1, cell(0, 3))).toBeNull();
     expect(shotError(p, 1, cell(4, 1))).toBeNull();
   });
 

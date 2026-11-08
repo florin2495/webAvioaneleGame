@@ -14,11 +14,13 @@ Același stil și aceeași arhitectură ca [Bingo](https://github.com/florin2495
 
 - Tabla e 10×10. Fiecare își ascunde avioanele (2–4, implicit 3; host-ul alege în lobby), rotite în orice direcție.
 - Două avioane nu au voie să se atingă, nici pe colț.
-- Pe rând, tragi într-o celulă de pe tabla adversarului: apă, lovit sau cap.
+- Pe rând, tragi într-o celulă de pe tabla adversarului: aer, lovit sau cap.
 - Dacă nimerești un avion, mai tragi o dată, cât timp nimerești.
-- Cap nimerit = avionul cade pe loc. Trăgătorul trebuie apoi să ghicească forma lui (încotro arată capul):
-  ghicit = avionul apare pe tablă și mai trage; greșit = tura trece. Avionul rămâne doborât oricum.
-- Ultimul avion doborât câștigă direct, fără ghicit.
+- Cap nimerit = avionul cade pe loc (și mai tragi). Nu se dezvăluie nimic: forma o deduci singur.
+- Notițe private pe tabla adversarului: butonul „✕ Marchez X” pune X-uri unde nu mai vrei să tragi, iar „✈ Poz. avion”
+  desenează unde crezi că e un avion (poziție oricât de greșită). Rămân doar pe dispozitivul tău; la final, locurile
+  notate care s-au dovedit goale apar cu X pe tabla adversarului.
+- Ultimul avion doborât câștigă direct.
 - Nimic nu te oprește să tragi lângă un avion găsit. Doar celulele deja cunoscute sunt blocate.
 - Sus e tabla ta (cu loviturile adversarului), jos e tabla adversarului, unde tragi.
 - Spectatorii văd loviturile pe ambele table. Avioanele se văd abia la final, ca un spectator să nu-i poată sufla nimic unui jucător.

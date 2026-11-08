@@ -79,7 +79,7 @@ export function PlayerList({ state, token, refresh }: { state: RoomState; token:
                 ) : isWinner ? (
                   <span className="text-sm font-bold text-amber-600">🏆 câștigător</span>
                 ) : isTurn ? (
-                  <span className="text-xs">{room.pending ? "ghicește forma" : "trage"}</span>
+                  <span className="text-xs">trage</span>
                 ) : null}
                 {canKick && p.id !== me.id && (
                   <button

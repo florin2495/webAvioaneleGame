@@ -30,10 +30,10 @@ export async function POST(req: Request, ctx: RouteContext<"/api/rooms/[code]/sh
     const planes = await getSeatPlanes(room.id, room.round, other(seat));
     if (!planes) fail(409, "Adversarul nu mai e în joc.");
     const result = shotResult(planes, cell);
-    const move: Move = { seq: moves.length + 1, kind: "shot", seat, cell, dir: null, result };
+    const move: Move = { seq: moves.length + 1, seat, cell, result };
 
     // unique (room, round, seq): a concurrent move from the same state loses here.
-    const { error } = await db().from(T.moves).insert({ room_id: room.id, round: room.round, ...move });
+    const { error } = await db().from(T.moves).insert({ room_id: room.id, round: room.round, kind: "shot", ...move });
     if (isUniqueViolation(error)) fail(409, "Starea jocului s-a schimbat. Reîncearcă.");
     if (error) throw error;
 

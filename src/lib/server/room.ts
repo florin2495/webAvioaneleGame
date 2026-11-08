@@ -121,7 +121,7 @@ export async function listPlayers(roomId: string): Promise<PlayerRow[]> {
 export async function listMoves(roomId: string, round: number): Promise<Move[]> {
   const { data, error } = await db()
     .from(T.moves)
-    .select("seq, kind, seat, cell, dir, result")
+    .select("seq, seat, cell, result")
     .eq("room_id", roomId)
     .eq("round", round)
     .order("seq", { ascending: true });
@@ -206,7 +206,6 @@ export async function buildState(room: RoomRow, me: PlayerRow): Promise<RoomStat
       hostPlayerId: room.host_player_id,
       winnerPlayerId: room.winner_player_id,
       turnSeat: playing ? progress.turn : null,
-      pending: playing ? progress.pending : null,
       downed: progress.downed,
     },
     players: sortMembers(players).map((p) => toPublic(p, now)),

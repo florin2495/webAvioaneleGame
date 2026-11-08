@@ -27,9 +27,8 @@ export interface RoomState {
     hasPassword: boolean;
     hostPlayerId: string | null;
     winnerPlayerId: string | null;
-    /** Whose move it is while playing (shot or, with `pending`, guess). */
+    /** Whose shot it is while playing. */
     turnSeat: Seat | null;
-    pending: { seat: Seat; head: number } | null;
     downed: Record<Seat, number>;
   };
   /** Seat 1, seat 2, then spectators in join order. */
@@ -37,7 +36,7 @@ export interface RoomState {
   me: PublicPlayer;
   /** My own layout for this round (players only). */
   myPlanes: Plane[] | null;
-  /** Every move of the round - public knowledge for both players and spectators. */
+  /** Every shot of the round - public knowledge for both players and spectators. */
   moves: Move[];
   /** Both layouts - only once the game is finished. */
   reveal: Partial<Record<Seat, Plane[]>> | null;

@@ -195,11 +195,12 @@ export function Home() {
         <ol className="list-decimal space-y-1 pl-5">
           <li>Tabla e de 10×10. Fiecare își ascunde avioanele (3, implicit) cu forma de mai sus, rotite cum vrea.</li>
           <li>Două avioane nu au voie să se atingă, nici măcar pe colț.</li>
-          <li>Pe rând, tragi într-o celulă de pe tabla adversarului: apă, lovit sau cap.</li>
+          <li>Pe rând, tragi într-o celulă de pe tabla adversarului: aer, lovit sau cap.</li>
           <li>Dacă nimerești un avion, mai tragi o dată, cât timp tot nimerești.</li>
+          <li>Dacă nimerești capul, avionul cade pe loc și mai tragi. Forma lui o deduci singur.</li>
           <li>
-            Dacă nimerești capul, avionul cade pe loc. Apoi trebuie să-i ghicești forma (încotro arată capul). Dacă ghicești, avionul
-            apare pe tablă și mai tragi. Dacă nu, tura trece la adversar.
+            Pe tabla adversarului poți nota: „✕ Marchez X” pentru locuri unde nu mai vrei să tragi și „✈ Poz. avion” ca să desenezi unde
+            crezi că e un avion. Notițele sunt doar ale tale.
           </li>
           <li>Câștigă cine doboară primul toate avioanele adversarului.</li>
           <li>Sus e tabla ta, jos e tabla adversarului, unde tragi. Poți trage oriunde, și lângă un avion găsit.</li>

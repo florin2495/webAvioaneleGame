@@ -12,9 +12,8 @@
 //  - each player hides PLANES_DEFAULT (configurable) planes; planes may not overlap or touch,
 //    not even diagonally
 //  - a hit (body or head) gives the shooter one more shot, and so on while they keep hitting
-//  - hitting the head downs the plane at once; the shooter must then guess the plane's shape
-//    (its direction) on the opponent board: right = the whole plane is revealed and they keep
-//    shooting, wrong = the plane stays down but nothing is revealed and the turn passes
+//  - hitting the head downs the plane at once (and, like any hit, gives one more shot); nothing is
+//    revealed - the shooter keeps their own private notes (X marks, a guessed plane), see notes.ts
 //  - the first to down every plane of the opponent wins
 //  - nothing stops a shot next to a known plane, only cells already known are blocked
 
@@ -45,18 +44,13 @@ export interface Plane {
 }
 
 export type ShotResult = "miss" | "hit" | "head";
-export type GuessResult = "correct" | "wrong";
-
 export interface Move {
   seq: number;
-  kind: "shot" | "guess";
-  /** Seat of the player who made the move; the target is always the other seat. */
+  /** Seat of the player who shot; the target is always the other seat. */
   seat: Seat;
-  /** Shot: the cell fired at. Guess: the head cell the guess is about. */
+  /** The cell fired at. */
   cell: number;
-  /** Guess only: the direction guessed. */
-  dir: Dir | null;
-  result: ShotResult | GuessResult;
+  result: ShotResult;
 }
 
 export const other = (seat: Seat): Seat => (seat === 1 ? 2 : 1);
@@ -201,25 +195,13 @@ export function shotResult(planes: Plane[], cell: number): ShotResult {
   return "miss";
 }
 
-/** The real direction of the plane whose head is at `head`, if any. */
-export function planeAtHead(planes: Plane[], head: number): Plane | null {
-  return planes.find((p) => p.head === head) ?? null;
-}
-
-/** Directions a plane with its head on `head` could have (the ones that fit on the board). */
-export function possibleDirs(head: number): Dir[] {
-  return DIRS.filter((dir) => planeCells({ head, dir }) !== null);
-}
-
 export interface Progress {
-  /** Whose shot it is (or whose guess, while `pending` is set). Null once there is a winner. */
+  /** Whose shot it is. Null once there is a winner. */
   turn: Seat | null;
-  /** Set right after a head hit: that seat must guess the shape before anything else. */
-  pending: { seat: Seat; head: number } | null;
   /** Planes downed ON each seat's board. */
   downed: Record<Seat, number>;
   winner: Seat | null;
-  /** Cells of each seat's board that are already known to the shooter (shot or revealed). */
+  /** Cells of each seat's board that are already known to the shooter (shot). */
   known: Record<Seat, Set<number>>;
 }
 
@@ -227,32 +209,19 @@ export interface Progress {
 export function replay(moves: Move[], round: number, planesCount: number): Progress {
   const p: Progress = {
     turn: startSeat(round),
-    pending: null,
     downed: { 1: 0, 2: 0 },
     winner: null,
     known: { 1: new Set(), 2: new Set() },
   };
   for (const m of [...moves].sort((a, b) => a.seq - b.seq)) {
     const target = other(m.seat);
-    if (m.kind === "shot") {
-      p.known[target].add(m.cell);
-      if (m.result === "miss") p.turn = target;
-      else if (m.result === "head") {
-        p.downed[target]++;
-        if (p.downed[target] >= planesCount) {
-          p.winner = m.seat;
-          p.turn = null;
-          p.pending = null;
-        } else {
-          p.pending = { seat: m.seat, head: m.cell };
-        }
-      }
-    } else {
-      p.pending = null;
-      if (m.result === "correct" && m.dir) {
-        for (const c of planeCells({ head: m.cell, dir: m.dir }) ?? []) p.known[target].add(c);
-      } else {
-        p.turn = target;
+    p.known[target].add(m.cell);
+    if (m.result === "miss") p.turn = target;
+    else if (m.result === "head") {
+      p.downed[target]++;
+      if (p.downed[target] >= planesCount) {
+        p.winner = m.seat;
+        p.turn = null;
       }
     }
   }
@@ -262,9 +231,6 @@ export function replay(moves: Move[], round: number, planesCount: number): Progr
 /** Null when `seat` may fire at `cell` now; otherwise the reason. */
 export function shotError(progress: Progress, seat: Seat, cell: number): string | null {
   if (progress.winner) return "Jocul s-a terminat.";
-  if (progress.pending) {
-    return progress.pending.seat === seat ? "Întâi ghicește forma avionului doborât." : "Adversarul ghicește forma avionului.";
-  }
   if (progress.turn !== seat) return "Nu e tura ta.";
   if (!isCell(cell)) return "Celulă invalidă.";
   if (progress.known[other(seat)].has(cell)) return "Ai tras deja acolo.";
