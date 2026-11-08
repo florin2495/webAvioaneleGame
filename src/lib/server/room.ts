@@ -7,7 +7,6 @@ import {
   PLAYING_IDLE_MINUTES,
   type Move,
   type Plane,
-  type Progress,
   type Seat,
 } from "@/lib/game";
 import type { PublicPlayer, RoomState } from "@/lib/types";
@@ -65,18 +64,20 @@ export async function requireMember(req: Request, code: string): Promise<{ room:
   const token = req.headers.get("x-player-token");
   if (!token || token.length > 200) fail(401, "Nu ești în această cameră.");
   let room = await getRoomByCode(code);
-  // Lazy enforcement of expired pending kicks (no timers on serverless). Runs before the
-  // membership check, so a player who was just removed gets the usual 401.
-  if (await enforceExpiredKicks(room)) room = await getRoomByCode(code);
-  const { data, error } = await db()
-    .from(T.players)
-    .select(PLAYER_COLUMNS)
-    .eq("token_hash", hashToken(token))
-    .eq("room_id", room.id)
-    .maybeSingle();
-  if (error) throw error;
-  if (!data) fail(401, "Nu ești în această cameră.");
-  const player = data as PlayerRow;
+  const findPlayer = () =>
+    db().from(T.players).select(PLAYER_COLUMNS).eq("token_hash", hashToken(token)).eq("room_id", room.id).maybeSingle();
+  // Lazy enforcement of expired pending kicks (no timers on serverless), in parallel with the
+  // membership lookup. If somebody was removed, both are read again, so a player who was just
+  // removed gets the usual 401.
+  const [kicked, first] = await Promise.all([enforceExpiredKicks(room), findPlayer()]);
+  let found = first;
+  if (kicked) {
+    room = await getRoomByCode(code);
+    found = await findPlayer();
+  }
+  if (found.error) throw found.error;
+  if (!found.data) fail(401, "Nu ești în această cameră.");
+  const player = found.data as PlayerRow;
   await touchPlayer(player);
   return { room, player };
 }
@@ -142,23 +143,6 @@ export async function getPlanes(playerId: string, round: number): Promise<Plane[
   return (data?.planes as Plane[] | undefined) ?? null;
 }
 
-/** The planes of whoever sits on `seat` in this round. */
-export async function getSeatPlanes(roomId: string, round: number, seat: Seat): Promise<Plane[] | null> {
-  const { data, error } = await db()
-    .from(T.players)
-    .select("id")
-    .eq("room_id", roomId)
-    .eq("seat", seat)
-    .maybeSingle();
-  if (error) throw error;
-  return data ? getPlanes(data.id as string, round) : null;
-}
-
-export async function progressOf(room: RoomRow): Promise<{ moves: Move[]; progress: Progress }> {
-  const moves = await listMoves(room.id, room.round);
-  return { moves, progress: replay(moves, room.round, room.planes_count) };
-}
-
 /** Seated players first (seat 1, seat 2), then spectators in join order. */
 export function sortMembers(players: PlayerRow[]): PlayerRow[] {
   return [...players].sort((a, b) => (a.seat ?? 9) - (b.seat ?? 9));
@@ -176,24 +160,43 @@ const toPublic = (p: PlayerRow, now: number, queue: PlayerRow[] = []): PublicPla
   connected: isConnected(p.last_seen_at, now),
 });
 
-async function revealRound(roomId: string, round: number, players: PlayerRow[]): Promise<Partial<Record<Seat, Plane[]>>> {
+export interface BoardRow {
+  player_id: string;
+  planes: Plane[];
+}
+
+/** Every layout of a round (server side only: never send the opponent's to a client mid-game). */
+export async function listBoards(roomId: string, round: number): Promise<BoardRow[]> {
   const { data, error } = await db().from(T.boards).select("player_id, planes").eq("room_id", roomId).eq("round", round);
   if (error) throw error;
+  return (data ?? []) as BoardRow[];
+}
+
+function revealRound(boards: BoardRow[], players: PlayerRow[]): Partial<Record<Seat, Plane[]>> {
   const out: Partial<Record<Seat, Plane[]>> = {};
-  for (const b of data ?? []) {
+  for (const b of boards) {
     const seat = players.find((p) => p.id === b.player_id)?.seat;
-    if (seat) out[seat] = b.planes as Plane[];
+    if (seat) out[seat] = b.planes;
   }
   return out;
 }
 
-export async function buildState(room: RoomRow, me: PlayerRow): Promise<RoomState> {
-  const [players, moves, myPlanes] = await Promise.all([
-    listPlayers(room.id),
-    listMoves(room.id, room.round),
-    me.seat ? getPlanes(me.id, room.round) : Promise.resolve(null),
-  ]);
-  const reveal = room.status === "finished" ? await revealRound(room.id, room.round, players) : null;
+/** What buildState reads; a route that already has it (e.g. /shoot) passes it in to skip the queries. */
+export interface RoundData {
+  players: PlayerRow[];
+  moves: Move[];
+  boards: BoardRow[];
+}
+
+export async function loadRound(room: RoomRow): Promise<RoundData> {
+  const [players, moves, boards] = await Promise.all([listPlayers(room.id), listMoves(room.id, room.round), listBoards(room.id, room.round)]);
+  return { players, moves, boards };
+}
+
+export async function buildState(room: RoomRow, me: PlayerRow, data?: RoundData): Promise<RoomState> {
+  const { players, moves, boards } = data ?? (await loadRound(room));
+  const myPlanes = me.seat ? (boards.find((b) => b.player_id === me.id)?.planes ?? null) : null;
+  const reveal = room.status === "finished" ? revealRound(boards, players) : null;
   const progress = replay(moves, room.round, room.planes_count);
   const playing = room.status === "playing";
   const now = Date.now();
@@ -225,7 +228,7 @@ export async function buildState(room: RoomRow, me: PlayerRow): Promise<RoomStat
  * Ends a running game with `winnerId`. Conditional, so only one request can finish it; that one also
  * reports the round to the shared leaderboard (once per room + round).
  */
-export async function finishGame(room: RoomRow, winnerId: string | null): Promise<void> {
+export async function finishGame(room: RoomRow, winnerId: string | null, members?: PlayerRow[]): Promise<void> {
   const now = new Date().toISOString();
   const { data, error } = await db()
     .from(T.rooms)
@@ -234,7 +237,7 @@ export async function finishGame(room: RoomRow, winnerId: string | null): Promis
     .eq("status", "playing")
     .select("id");
   if (error) throw error;
-  if (data?.length) await reportRound(room, await listPlayers(room.id), winnerId);
+  if (data?.length) await reportRound(room, members ?? (await listPlayers(room.id)), winnerId);
 }
 
 /** Clears every pending kick of the room (new game, back to the lobby). */

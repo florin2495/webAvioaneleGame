@@ -25,7 +25,7 @@ interface Props {
   refresh: () => Promise<void>;
 }
 
-export function Game({ state, token, refresh }: Props) {
+export function Game({ state, token, refresh, apply }: Props & { apply: (s: RoomState) => void }) {
   const { room, me, players, moves, myPlanes, reveal } = state;
   const finished = room.status === "finished";
   const mySeat = me.seat;
@@ -38,6 +38,8 @@ export function Game({ state, token, refresh }: Props) {
 
   const [confirmShot] = useBoolPref(PREF_CONFIRM_SHOT, false);
   const [selected, setSelected] = useState<number | null>(null);
+  /** Cell fired at, shown right away while the server answers. */
+  const [firing, setFiring] = useState<number | null>(null);
   const [tool, setTool] = useState<Tool>("shoot");
   const [planeDir, setPlaneDir] = useState<Dir>("N");
   const noteKey = mySeat ? notesKey(room.code, room.round, me.id) : null;
@@ -88,15 +90,18 @@ export function Game({ state, token, refresh }: Props) {
   async function shoot(cell: number) {
     setBusy(true);
     setError("");
+    setFiring(cell);
     try {
-      await api(`/api/rooms/${room.code}/shoot`, { token, body: { cell } });
+      // The answer carries the new state: no second request before the result shows up.
+      const res = await api<{ state: RoomState }>(`/api/rooms/${room.code}/shoot`, { token, body: { cell } });
       setSelected(null);
-      await refresh();
+      apply(res.state);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Eroare.");
       await refresh();
     } finally {
       setBusy(false);
+      setFiring(null);
     }
   }
 
@@ -132,7 +137,7 @@ export function Game({ state, token, refresh }: Props) {
   bottom.forEach((v, i) => {
     // A guessed plane may have its head on a cell already shot (e.g. the head just hit).
     v.clickable = canNote && (activeTool === "plane" || (!known.has(i) && (activeTool !== "shoot" || (myTurn && !busy))));
-    v.selected = activeTool === "shoot" && selected === i;
+    v.selected = (activeTool === "shoot" && selected === i) || firing === i;
   });
 
   const winner = players.find((p) => p.id === room.winnerPlayerId) ?? null;

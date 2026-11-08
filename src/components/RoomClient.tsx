@@ -55,11 +55,16 @@ function useRoomState(code: string, token: string) {
   const [missing, setMissing] = useState(false);
   const latest = useRef(0);
 
-  const refresh = useCallback(async () => {
+  // Coalescing: while a /state request is in flight, further calls (broadcast, poll, focus) only mark it
+  // stale; one more request runs when it answers. Avoids bursts of identical requests.
+  const inFlight = useRef<Promise<void> | null>(null);
+  const stale = useRef(false);
+
+  const fetchState = useCallback(async () => {
     const id = ++latest.current;
     try {
       const s = await api<RoomState>(`/api/rooms/${code}/state`, { token });
-      if (id !== latest.current) return; // a newer request already answered
+      if (id !== latest.current) return; // a newer answer (request or apply) already won
       setState(s);
       setError("");
     } catch (err) {
@@ -76,6 +81,30 @@ function useRoomState(code: string, token: string) {
       }
     }
   }, [code, token]);
+
+  const refresh = useCallback((): Promise<void> => {
+    if (inFlight.current) {
+      stale.current = true;
+      return inFlight.current;
+    }
+    const run = (async () => {
+      do {
+        stale.current = false;
+        await fetchState();
+      } while (stale.current);
+    })().finally(() => {
+      inFlight.current = null;
+    });
+    inFlight.current = run;
+    return run;
+  }, [fetchState]);
+
+  /** A state the server already sent (e.g. in the /shoot answer): use it at once, older answers lose. */
+  const apply = useCallback((s: RoomState) => {
+    ++latest.current;
+    setState(s);
+    setError("");
+  }, []);
 
   // Bumping this tears the Realtime channel down and subscribes again (phones kill sockets in the background).
   const [reconnectKey, setReconnectKey] = useState(0);
@@ -114,6 +143,7 @@ function useRoomState(code: string, token: string) {
 
   // Realtime: the server broadcasts a bare "refresh" signal; we re-fetch authenticated state.
   const roomId = state?.room.id;
+  const myId = state?.me.id;
   useEffect(() => {
     const client = realtimeClient();
     if (!roomId || !client) return;
@@ -121,7 +151,11 @@ function useRoomState(code: string, token: string) {
     let retry: number | undefined;
     const channel = client
       .channel(`airplanes-room:${roomId}`)
-      .on("broadcast", { event: "refresh" }, () => void refresh())
+      .on("broadcast", { event: "refresh" }, (msg: { payload?: { by?: string | null } }) => {
+        // Our own move: the answer to it already carried the new state.
+        if (msg.payload?.by && msg.payload.by === myId) return;
+        void refresh();
+      })
       .subscribe((status) => {
         if (disposed) return; // CLOSED from our own cleanup
         if (status === "SUBSCRIBED") void refresh(); // catch anything missed while connecting
@@ -134,13 +168,13 @@ function useRoomState(code: string, token: string) {
       window.clearTimeout(retry);
       void client.removeChannel(channel);
     };
-  }, [roomId, refresh, reconnectKey]);
+  }, [roomId, myId, refresh, reconnectKey]);
 
-  return { state, error, missing, refresh };
+  return { state, error, missing, refresh, apply };
 }
 
 function Room({ code, token }: { code: string; token: string }) {
-  const { state, error, missing, refresh } = useRoomState(code, token);
+  const { state, error, missing, refresh, apply } = useRoomState(code, token);
 
   if (missing) {
     return (
@@ -175,7 +209,7 @@ function Room({ code, token }: { code: string; token: string }) {
       {state.room.status === "lobby" ? (
         <Lobby state={state} token={token} refresh={refresh} />
       ) : (
-        <Game state={state} token={token} refresh={refresh} />
+        <Game state={state} token={token} refresh={refresh} apply={apply} />
       )}
       <SettingsPanel />
       <LeaveButton state={state} token={token} />
