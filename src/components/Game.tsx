@@ -130,7 +130,8 @@ export function Game({ state, token, refresh }: Props) {
     for (const c of missedNotedCells(notes, shot, real)) bottom[c].cross = true;
   }
   bottom.forEach((v, i) => {
-    v.clickable = canNote && !known.has(i) && (activeTool !== "shoot" || (myTurn && !busy));
+    // A guessed plane may have its head on a cell already shot (e.g. the head just hit).
+    v.clickable = canNote && (activeTool === "plane" || (!known.has(i) && (activeTool !== "shoot" || (myTurn && !busy))));
     v.selected = activeTool === "shoot" && selected === i;
   });
 
