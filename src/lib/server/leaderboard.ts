@@ -7,7 +7,7 @@ import { isUniqueViolation } from "./http";
 const GAME_SLUG = "airplanes";
 
 /** Same person = same nickname, case and surrounding spaces ignored (there are no accounts). */
-export const playerKey = (nickname: string) => nickname.trim().toLowerCase();
+export const playerKey = (nickname: string) => nickname.trim().toLowerCase().slice(0, 40);
 
 async function bump(key: string, name: string, won: boolean): Promise<void> {
   for (let attempt = 0; attempt < 4; attempt++) {
@@ -55,7 +55,7 @@ export async function reportRound(room: RoomRow, members: PlayerRow[], winnerId:
     const { error } = await db().from("hub_leaderboard_rounds").insert({ game: GAME_SLUG, room_code: room.code, round_no: room.round });
     if (isUniqueViolation(error)) return; // already counted
     if (error) throw error;
-    for (const p of seated) await bump(playerKey(p.nickname), p.nickname.trim(), p.id === winnerId);
+    for (const p of seated) await bump(playerKey(p.nickname), p.nickname.trim().slice(0, 40), p.id === winnerId);
   } catch (err) {
     console.error("leaderboard report failed", err);
   }
