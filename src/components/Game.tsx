@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { api } from "@/lib/client/api";
 import { PREF_CONFIRM_SHOT, readPref, useBoolPref, writePref } from "@/lib/client/prefs";
 import { cellLabel, DIRS, DIR_LABEL, other, type Dir, type Move, type Seat } from "@/lib/game";
@@ -39,7 +39,6 @@ export function Game({ state, token, refresh }: Props) {
   const [confirmShot] = useBoolPref(PREF_CONFIRM_SHOT, false);
   const [selected, setSelected] = useState<number | null>(null);
   const [tool, setTool] = useState<Tool>("shoot");
-  const lastMark = useRef({ cell: -1, at: 0 });
   const [planeDir, setPlaneDir] = useState<Dir>("N");
   const noteKey = mySeat ? notesKey(room.code, room.round, me.id) : null;
   const [notesState, setNotesState] = useState<{ key: string | null; notes: Notes }>(() => ({
@@ -48,9 +47,32 @@ export function Game({ state, token, refresh }: Props) {
   }));
   // A new round means other notes: read them from storage again.
   const notes = notesState.key === noteKey ? notesState.notes : noteKey ? parseNotes(readPref(noteKey)) : emptyNotes();
-  function updateNotes(next: Notes) {
-    setNotesState({ key: noteKey, notes: next });
-    if (noteKey) writePref(noteKey, JSON.stringify(next));
+  // Latest notes, readable synchronously: two taps before a re-render (two fingers, fast taps) both apply.
+  const latest = useRef(notesState);
+  const pendingSave = useRef<{ key: string; json: string; timer: ReturnType<typeof setTimeout> } | null>(null);
+  function flushSave() {
+    const p = pendingSave.current;
+    if (!p) return;
+    clearTimeout(p.timer);
+    pendingSave.current = null;
+    writePref(p.key, p.json);
+  }
+  // Saved NOTES_SAVE_DEBOUNCE_MS after the last X / plane change (and right away when leaving the page).
+  useEffect(() => {
+    window.addEventListener("pagehide", flushSave);
+    return () => {
+      window.removeEventListener("pagehide", flushSave);
+      flushSave();
+    };
+  }, []);
+  function updateNotes(change: (n: Notes) => Notes) {
+    const base = latest.current.key === noteKey ? latest.current.notes : notes;
+    const next = { key: noteKey, notes: change(base) };
+    latest.current = next;
+    setNotesState(next);
+    if (!noteKey) return;
+    if (pendingSave.current) clearTimeout(pendingSave.current.timer);
+    pendingSave.current = { key: noteKey, json: JSON.stringify(next.notes), timer: setTimeout(flushSave, NOTES_SAVE_DEBOUNCE_MS) };
   }
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -80,16 +102,11 @@ export function Game({ state, token, refresh }: Props) {
 
   function tapTarget(cell: number) {
     if (activeTool === "mark") {
-      // Debounce: a second tap on the same cell within 350 ms (double tap) is ignored, so it does not undo the X.
-      const now = Date.now();
-      const last = lastMark.current;
-      if (last.cell === cell && now - last.at < MARK_DEBOUNCE_MS) return;
-      lastMark.current = { cell, at: now };
-      if (!known.has(cell)) updateNotes(toggleMark(notes, cell));
+      if (!known.has(cell)) updateNotes((n) => toggleMark(n, cell));
       return;
     }
     if (activeTool === "plane") {
-      updateNotes(togglePlane(notes, { head: cell, dir: planeDir }, room.planesCount));
+      updateNotes((n) => togglePlane(n, { head: cell, dir: planeDir }, room.planesCount));
       return;
     }
     if (!myTurn || busy || known.has(cell)) return;
@@ -149,8 +166,8 @@ export function Game({ state, token, refresh }: Props) {
             onDir={setPlaneDir}
             notes={notes}
             planesCount={room.planesCount}
-            onClearMarks={() => updateNotes({ ...notes, marks: [] })}
-            onClearPlanes={() => updateNotes({ ...notes, planes: [] })}
+            onClearMarks={() => updateNotes((n) => ({ ...n, marks: [] }))}
+            onClearPlanes={() => updateNotes((n) => ({ ...n, planes: [] }))}
           />
         )}
 
@@ -238,7 +255,7 @@ function lastText(m: Move | undefined, name: (s: Seat) => string): string {
   return `${who}: ${where} cap! `;
 }
 
-const MARK_DEBOUNCE_MS = 350;
+const NOTES_SAVE_DEBOUNCE_MS = 350;
 
 type Tool = "shoot" | "mark" | "plane";
 
