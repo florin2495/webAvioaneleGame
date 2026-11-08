@@ -13,9 +13,11 @@ import {
 import type { PublicPlayer, RoomState } from "@/lib/types";
 import { kickRemainingMs } from "@/lib/kick";
 import { isConnected, LAST_SEEN_TOUCH_MS } from "@/lib/reconnect";
+import { queueOrder } from "@/lib/queue";
 import { hashToken } from "./crypto";
 import { db, PLAYER_COLUMNS, ROOM_COLUMNS, T, type PlayerRow, type RoomRow } from "./db";
 import { fail } from "./http";
+import { reportRound } from "./leaderboard";
 import { enforceExpiredKicks } from "./membership";
 
 const GONE = `Camera nu există sau a fost închisă după ${minutesLabel(ROOM_IDLE_MINUTES)} de inactivitate.`;
@@ -162,13 +164,15 @@ export function sortMembers(players: PlayerRow[]): PlayerRow[] {
   return [...players].sort((a, b) => (a.seat ?? 9) - (b.seat ?? 9));
 }
 
-const toPublic = (p: PlayerRow, now: number): PublicPlayer => ({
+const toPublic = (p: PlayerRow, now: number, queue: PlayerRow[] = []): PublicPlayer => ({
   id: p.id,
   nickname: p.nickname,
   isHost: p.is_host,
   ready: p.ready,
   seat: p.seat,
   kickRemainingMs: kickRemainingMs(p.kick_requested_at, now),
+  queued: p.queued_at !== null,
+  queuePos: p.queued_at === null ? null : queue.findIndex((q) => q.id === p.id) + 1 || null,
   connected: isConnected(p.last_seen_at, now),
 });
 
@@ -193,6 +197,7 @@ export async function buildState(room: RoomRow, me: PlayerRow): Promise<RoomStat
   const progress = replay(moves, room.round, room.planes_count);
   const playing = room.status === "playing";
   const now = Date.now();
+  const queue = queueOrder(players);
 
   return {
     room: {
@@ -208,23 +213,28 @@ export async function buildState(room: RoomRow, me: PlayerRow): Promise<RoomStat
       turnSeat: playing ? progress.turn : null,
       downed: progress.downed,
     },
-    players: sortMembers(players).map((p) => toPublic(p, now)),
-    me: toPublic(me, now),
+    players: sortMembers(players).map((p) => toPublic(p, now, queue)),
+    me: toPublic(me, now, queue),
     myPlanes,
     moves: room.status === "lobby" ? [] : moves,
     reveal,
   };
 }
 
-/** Ends a running game with `winnerId`. Conditional, so only one request can finish it. */
-export async function finishGame(roomId: string, winnerId: string | null): Promise<void> {
+/**
+ * Ends a running game with `winnerId`. Conditional, so only one request can finish it; that one also
+ * reports the round to the shared leaderboard (once per room + round).
+ */
+export async function finishGame(room: RoomRow, winnerId: string | null): Promise<void> {
   const now = new Date().toISOString();
-  const { error } = await db()
+  const { data, error } = await db()
     .from(T.rooms)
     .update({ status: "finished", winner_player_id: winnerId, updated_at: now, last_activity_at: now })
-    .eq("id", roomId)
-    .eq("status", "playing");
+    .eq("id", room.id)
+    .eq("status", "playing")
+    .select("id");
   if (error) throw error;
+  if (data?.length) await reportRound(room, await listPlayers(room.id), winnerId);
 }
 
 /** Clears every pending kick of the room (new game, back to the lobby). */

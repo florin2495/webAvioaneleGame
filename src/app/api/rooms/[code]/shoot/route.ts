@@ -40,7 +40,7 @@ export async function POST(req: Request, ctx: RouteContext<"/api/rooms/[code]/sh
     const after = replay([...moves, move], room.round, room.planes_count);
     if (after.winner) {
       const winner = (await listPlayers(room.id)).find((p) => p.seat === after.winner);
-      await finishGame(room.id, winner?.id ?? null);
+      await finishGame(room, winner?.id ?? null);
     } else {
       await touchRoom(room.id, { updated_at: new Date().toISOString() });
     }

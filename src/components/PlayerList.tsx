@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { api } from "@/lib/client/api";
 import { useKickCountdown } from "@/lib/client/kick";
+import { startSeat } from "@/lib/game";
 import type { RoomState } from "@/lib/types";
 import { ErrorText } from "./ui";
 
@@ -27,7 +28,39 @@ export function PlayerList({ state, token, refresh }: { state: RoomState; token:
   const canKick = room.hostPlayerId === me.id;
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState("");
-  const freeSeats = 2 - players.filter((p) => p.seat).length;
+  const seated = players.filter((p) => p.seat);
+  const freeSeats = 2 - seated.length;
+  // Host reorders the two players in the lobby (also between rounds): decides who starts.
+  const canReorder = canKick && room.status === "lobby" && seated.length === 2;
+  const canQueue = me.seat === null && (room.status !== "lobby" || freeSeats === 0);
+
+  async function reorder() {
+    setBusy("reorder");
+    setError("");
+    try {
+      // Swap the two seats: the player now on seat 2 goes first.
+      const order = [...seated].reverse().map((p) => p.id);
+      await api(`/api/rooms/${room.code}/reorder`, { token, body: { order } });
+      await refresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Eroare.");
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function toggleQueue() {
+    setBusy("queue");
+    setError("");
+    try {
+      await api(`/api/rooms/${room.code}/queue`, { token, body: {} });
+      await refresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Eroare.");
+    } finally {
+      setBusy(null);
+    }
+  }
 
   async function kick(id: string, nickname: string, seated: boolean) {
     const midGame =
@@ -68,8 +101,19 @@ export function PlayerList({ state, token, refresh }: { state: RoomState; token:
               </span>
               <span className="flex shrink-0 items-center gap-2">
                 <KickBadge remainingMs={p.kickRemainingMs} state={state} refresh={refresh} />
+                {canReorder && p.seat && (
+                  <button
+                    type="button"
+                    onClick={() => void reorder()}
+                    disabled={busy !== null}
+                    className="min-h-8 min-w-8 rounded-md border border-zinc-300 px-2 text-sm font-semibold disabled:opacity-40 dark:border-zinc-700"
+                    aria-label={`Schimbă ordinea jucătorilor (mută pe ${p.nickname} ${p.seat === 1 ? "mai jos" : "mai sus"})`}
+                  >
+                    {p.seat === 1 ? "↓" : "↑"}
+                  </button>
+                )}
                 {!p.seat ? (
-                  <span className="text-xs text-zinc-500">spectator</span>
+                  <span className="text-xs text-zinc-500">{p.queued ? `în coadă #${p.queuePos ?? ""}` : "spectator"}</span>
                 ) : room.status === "lobby" ? (
                   p.ready ? (
                     <span className="text-sm font-semibold text-emerald-600 dark:text-emerald-400">✓ gata</span>
@@ -106,6 +150,24 @@ export function PlayerList({ state, token, refresh }: { state: RoomState; token:
             </li>
           ))}
       </ul>
+      {room.status === "lobby" && seated.length === 2 && (
+        <p className="mt-2 text-xs text-zinc-500">
+          Începe runda {room.round}: <strong>{seated.find((p) => p.seat === startSeat(room.round))?.nickname}</strong>
+          {canReorder && " (↑↓ schimbă ordinea)"}
+        </p>
+      )}
+      {canQueue && (
+        <button
+          type="button"
+          onClick={() => void toggleQueue()}
+          disabled={busy !== null}
+          className={`mt-2 min-h-11 w-full rounded-xl px-4 text-sm font-semibold disabled:opacity-40 ${
+            me.queued ? "bg-emerald-600 text-white" : "bg-indigo-600 text-white"
+          }`}
+        >
+          {busy === "queue" ? "…" : me.queued ? `✓ Intri la runda următoare (loc ${me.queuePos ?? ""}) — apasă ca să renunți` : "Intră la runda următoare"}
+        </button>
+      )}
       <ErrorText>{error}</ErrorText>
     </>
   );

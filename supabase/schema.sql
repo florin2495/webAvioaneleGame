@@ -39,7 +39,8 @@ create table if not exists public.airplanes_players (
   joined_at  timestamptz not null default now(),
   kick_requested_at timestamptz, -- pending host kick during a game (null = none), see migrations/001
   last_seen_at timestamptz not null default now(), -- presence: disconnected after 45 s, see migrations/002
-  device_hash  text                                -- sha256 of the browser's device id, see migrations/002
+  device_hash  text,                               -- sha256 of the browser's device id, see migrations/002
+  queued_at    timestamptz                         -- spectator waiting for a seat next round, see migrations/003
 );
 create unique index if not exists airplanes_players_room_nickname_uq on public.airplanes_players (room_id, lower(nickname));
 create unique index if not exists airplanes_players_room_seat_uq on public.airplanes_players (room_id, seat) where seat is not null;
@@ -48,6 +49,7 @@ create index if not exists airplanes_players_room_idx on public.airplanes_player
 alter table public.airplanes_players add column if not exists kick_requested_at timestamptz;
 alter table public.airplanes_players add column if not exists last_seen_at timestamptz not null default now();
 alter table public.airplanes_players add column if not exists device_hash text;
+alter table public.airplanes_players add column if not exists queued_at timestamptz;
 create index if not exists airplanes_players_room_seen_idx on public.airplanes_players (room_id, last_seen_at);
 
 do $$ begin

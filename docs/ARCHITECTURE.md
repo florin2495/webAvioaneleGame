@@ -41,6 +41,8 @@ Realtime Broadcast doar ca semnal de „refresh”, identitate prin token aleato
 | POST | `/[code]/ready` | jucător, lobby | `{ ready }`; pornește jocul când ambii sunt gata |
 | POST | `/[code]/settings` | host, lobby | `{ planesCount }`; resetează tablele și „gata” |
 | POST | `/[code]/sit` | spectator, lobby | ia un loc liber |
+| POST | `/[code]/queue` | spectator | comută „Intră la runda următoare” (la `new-round` ocupă locurile libere, în ordinea cozii) |
+| POST | `/[code]/reorder` | host, lobby | `{ order: [playerId, ...] }`; schimbă locurile 1/2 (cine începe) |
 | POST | `/[code]/shoot` | jucătorul la tură | `{ cell }` 0–99 |
 | POST | `/[code]/new-round` | host, terminat | rundă nouă, înapoi în lobby |
 | POST | `/[code]/leave` | membru | pleacă |

@@ -23,8 +23,10 @@ export const PLANES_MIN = 2;
 export const PLANES_MAX = 4;
 export const PLANES_DEFAULT = 3;
 export const SEATS = [1, 2] as const;
-/** Two players + two spectators. */
-export const MAX_MEMBERS = 4;
+/** Spectators per room (contract B of the feedback plan). */
+export const MAX_SPECTATORS = 16;
+/** Two players + the spectators. */
+export const MAX_MEMBERS = 2 + MAX_SPECTATORS;
 export const NICKNAME_MAX = 10;
 /** Lobby / finished rooms close after this long with nobody having them open. */
 export const ROOM_IDLE_MINUTES = 10;

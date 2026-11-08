@@ -22,6 +22,7 @@ Migrations are run by hand in the Supabase SQL editor, so this list is the sourc
 | `supabase/schema.sql` (initial) | yes (2026-11-06, verified) | `airplanes_rooms`, `airplanes_players`, `airplanes_boards`, `airplanes_moves` |
 | `supabase/migrations/001_pending_kick.sql` | yes (2026-11-07, verified) | `airplanes_players.kick_requested_at timestamptz` (pending kick during a game). Do not push the kick-with-ignore code before it is run. |
 | `supabase/migrations/002_reconnect.sql` | yes (2026-11-07, verified: service role 200, anon 401) | `airplanes_players.last_seen_at`, `device_hash` + index (rejoin the same seat). Do not push the reconnect code before it is run. |
+| `supabase/migrations/003_spectator_queue.sql` | **no, to be run** | `airplanes_players.queued_at timestamptz` (spectator queue "Intră la runda următoare"). Every query selects this column (`PLAYER_COLUMNS`), so do not push before it is run. |
 
 Rules for schema changes:
 - New migration = new numbered file in `supabase/migrations/`, additive when possible, folded into `supabase/schema.sql` too.
@@ -32,6 +33,12 @@ Rejoin the same seat (`src/lib/reconnect.ts`): every member request stamps `last
 re-joining with an existing nickname reclaims that member row (new token; seat, ready flag and planes kept) from the
 same device (`device_hash`) or once it has been unseen for 45 s, also mid-game. `/state` exposes only a derived
 `connected` flag ("deconectat" badge). Lobby/finished rooms close after 10 idle minutes, games after 30.
+
+Leaderboard (`src/lib/server/leaderboard.ts`): when a round ends (last head, or a player leaves mid-game) `finishGame` reports to the hub's
+`hub_leaderboard` / `hub_leaderboard_rounds` (slug `airplanes`; migration `002_hub_leaderboard.sql` lives in the hub repo and must be run
+first). Best effort, never fails the game. Spectator queue: `POST /queue` toggles `queued_at`; `new-round` seats queued spectators
+(queue order) in free seats. Host reorder: `POST /reorder` swaps seats 1/2 in the lobby. Private notes (X marks, guessed plane) are
+client-only (`src/lib/notes.ts`, localStorage); the old "guess the shape" move/endpoint is gone.
 
 Feedback (`POST /api/feedback`) writes to `hub_feedback` (owned by `florin2495/hailataticu-hub`, slug `airplanes`); this game must not be deployed before that table exists.
 

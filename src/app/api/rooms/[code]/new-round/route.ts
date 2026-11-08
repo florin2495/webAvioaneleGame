@@ -1,7 +1,9 @@
 import { notifyRoom } from "@/lib/server/broadcast";
 import { db, T } from "@/lib/server/db";
-import { fail, handle } from "@/lib/server/http";
-import { requireHost, requireMember, requireStatus } from "@/lib/server/room";
+import { fail, handle, isUniqueViolation } from "@/lib/server/http";
+import { SEATS } from "@/lib/game";
+import { queueOrder } from "@/lib/queue";
+import { listPlayers, requireHost, requireMember, requireStatus } from "@/lib/server/room";
 
 // POST /api/rooms/[code]/new-round - host, after a game: back to the lobby for a new layout.
 export async function POST(req: Request, ctx: RouteContext<"/api/rooms/[code]/new-round">) {
@@ -24,6 +26,25 @@ export async function POST(req: Request, ctx: RouteContext<"/api/rooms/[code]/ne
 
     const { error: readyError } = await db().from(T.players).update({ ready: false, kick_requested_at: null }).eq("room_id", room.id);
     if (readyError) throw readyError;
+
+    // Queued spectators ("Intră la runda următoare") take the free seats, in the order they queued.
+    const members = await listPlayers(room.id);
+    const free = SEATS.filter((s) => !members.some((m) => m.seat === s));
+    const queue = queueOrder(members);
+    for (const seat of free) {
+      while (queue.length > 0) {
+        const next = queue.shift()!;
+        const { data: sat, error: sitError } = await db()
+          .from(T.players)
+          .update({ seat, ready: false, queued_at: null })
+          .eq("id", next.id)
+          .is("seat", null)
+          .select("id");
+        if (isUniqueViolation(sitError)) break; // that seat was taken meanwhile, next seat
+        if (sitError) throw sitError;
+        if (sat?.length) break;
+      }
+    }
     await notifyRoom(room.id, "new_round");
     return { ok: true };
   });

@@ -11,6 +11,10 @@ export interface PublicPlayer {
   seat: Seat | null;
   /** Ms left of a pending host kick (10 s grace), null when none. Relative, so no clock skew. */
   kickRemainingMs: number | null;
+  /** A spectator waiting for a seat in the next round ("Intră la runda următoare"). */
+  queued: boolean;
+  /** 1-based place in the queue of spectators, null when not queued. */
+  queuePos: number | null;
   /** Seen in the last 45 s (see lib/reconnect.ts). False = phone in the background, closed tab, no network. */
   connected: boolean;
 }

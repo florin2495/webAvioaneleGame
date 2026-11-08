@@ -24,7 +24,7 @@ export async function removePlayer(room: RoomRow, playerId: string, reason: stri
 
   if (room.status === "playing" && leaving?.seat) {
     const opponent = remaining.find((p) => p.seat && p.seat !== leaving.seat);
-    await finishGame(room.id, opponent?.id ?? null);
+    await finishGame(room, opponent?.id ?? null);
   }
 
   let newHostId = room.host_player_id;

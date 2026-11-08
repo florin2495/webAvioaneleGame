@@ -1,5 +1,5 @@
 import { enforceExpiredKicks } from "@/lib/server/membership";
-import { MAX_MEMBERS, NICKNAME_MAX, SEATS, type Seat } from "@/lib/game";
+import { MAX_SPECTATORS, NICKNAME_MAX, SEATS, type Seat } from "@/lib/game";
 import { seatBusyMessage, seatClaim } from "@/lib/reconnect";
 import { notifyRoom } from "@/lib/server/broadcast";
 import { hashDeviceId, hashToken, newPlayerToken, verifyPassword } from "@/lib/server/crypto";
@@ -67,10 +67,12 @@ export async function POST(req: Request, ctx: RouteContext<"/api/rooms/[code]/jo
       return { code: room.code, playerId: existing.id, token, seat: existing.seat };
     }
 
-    if (members.length >= MAX_MEMBERS) fail(409, `Camera e plină (2 jucători + ${MAX_MEMBERS - 2} spectatori).`);
-
     const wantsSeat = body.spectator !== true && room.status === "lobby";
     const freeSeats = wantsSeat ? SEATS.filter((s) => !members.some((m) => m.seat === s)) : [];
+    const spectators = members.filter((m) => m.seat === null).length;
+    if (freeSeats.length === 0 && spectators >= MAX_SPECTATORS) {
+      fail(409, `Camera are deja ${MAX_SPECTATORS} spectatori, nu mai e loc de privit.`);
+    }
 
     const token = newPlayerToken();
     // Try each free seat, then spectator. A concurrent join may take a seat first (unique index).
@@ -89,6 +91,6 @@ export async function POST(req: Request, ctx: RouteContext<"/api/rooms/[code]/jo
       await notifyRoom(room.id, "player_joined");
       return { code: room.code, playerId: data.id, token, seat: data.seat };
     }
-    fail(409, "Camera e plină.");
+    fail(409, `Camera are deja ${MAX_SPECTATORS} spectatori, nu mai e loc de privit.`);
   });
 }
