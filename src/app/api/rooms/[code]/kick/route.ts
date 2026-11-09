@@ -2,7 +2,7 @@ import { db, T } from "@/lib/server/db";
 import { notifyRoom } from "@/lib/server/broadcast";
 import { fail, handle, readJson } from "@/lib/server/http";
 import { removePlayer } from "@/lib/server/membership";
-import { requireHost, requireMember } from "@/lib/server/room";
+import { requireHost, requireMember, stateAfter } from "@/lib/server/room";
 
 // POST /api/rooms/[code]/kick  { playerId } - host removes another member (any status).
 // Kicking the opponent mid-game ends it in the host's favour, so the UI warns about that.
@@ -35,11 +35,11 @@ export async function POST(req: Request, ctx: RouteContext<"/api/rooms/[code]/ki
         .eq("id", targetId)
         .is("kick_requested_at", null);
       if (pendingError) throw pendingError;
-      await notifyRoom(room.id, "kick_pending");
-      return { ok: true, pending: true };
+      await notifyRoom(room.id, "kick_pending", player.id);
+      return { ok: true, pending: true, state: await stateAfter(room.id, player.id) };
     }
 
-    await removePlayer(room, targetId, "player_kicked");
-    return { ok: true };
+    await removePlayer(room, targetId, "player_kicked", player.id);
+    return { ok: true, state: await stateAfter(room.id, player.id) };
   });
 }

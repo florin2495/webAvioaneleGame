@@ -6,6 +6,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore
 import {
   api,
   ApiRequestError,
+  settle,
   clearSession,
   deviceId,
   parseSession,
@@ -30,6 +31,8 @@ const POLL_MS = 15_000;
 const RECONNECT_AFTER_MS = 5_000;
 /** Delay before rebuilding a channel that reported an error, so a broken socket does not spin. */
 const CHANNEL_RETRY_MS = 3_000;
+/** A state this young needs no catch-up /state when the Realtime channel becomes ready. */
+const SUBSCRIBE_FRESH_MS = 3_000;
 const removedKey = (code: string) => `avioane:removed:${code}`;
 const SERVER_SNAPSHOT = "__server__";
 
@@ -55,6 +58,7 @@ function useRoomState(code: string, token: string) {
   const [error, setError] = useState("");
   const [missing, setMissing] = useState(false);
   const latest = useRef(0);
+  const lastStateAt = useRef(0);
 
   // Coalescing: while a /state request is in flight, further calls (broadcast, poll, focus) only mark it
   // stale; one more request runs when it answers. Avoids bursts of identical requests.
@@ -66,6 +70,7 @@ function useRoomState(code: string, token: string) {
     try {
       const s = await api<RoomState>(`/api/rooms/${code}/state`, { token });
       if (id !== latest.current) return; // a newer answer (request or apply) already won
+      lastStateAt.current = Date.now();
       setState(s);
       setError("");
     } catch (err) {
@@ -103,6 +108,7 @@ function useRoomState(code: string, token: string) {
   /** A state the server already sent (e.g. in the /shoot answer): use it at once, older answers lose. */
   const apply = useCallback((s: RoomState) => {
     ++latest.current;
+    lastStateAt.current = Date.now();
     setState(s);
     setError("");
   }, []);
@@ -171,7 +177,8 @@ function useRoomState(code: string, token: string) {
       })
       .subscribe((status) => {
         if (disposed) return; // CLOSED from our own cleanup
-        if (status === "SUBSCRIBED") void refresh(); // catch anything missed while connecting
+        // Catch up on anything missed while connecting - unless the state on screen is only moments old (first load).
+        if (status === "SUBSCRIBED" && Date.now() - lastStateAt.current > SUBSCRIBE_FRESH_MS) void refresh();
         if ((status === "CHANNEL_ERROR" || status === "TIMED_OUT" || status === "CLOSED") && retry === undefined) {
           retry = window.setTimeout(() => setReconnectKey((k) => k + 1), CHANNEL_RETRY_MS);
         }
@@ -220,18 +227,28 @@ function Room({ code, token }: { code: string; token: string }) {
       <RoomHeader state={state} />
       {error && <ErrorText>Conexiune instabilă: {error}</ErrorText>}
       {state.room.status === "lobby" ? (
-        <Lobby state={state} token={token} refresh={refresh} />
+        <Lobby state={state} token={token} refresh={refresh} apply={apply} />
       ) : (
         <Game state={state} token={token} refresh={refresh} apply={apply} />
       )}
       <SettingsPanel />
       <LeaveButton state={state} token={token} />
-      {state.me.kickRemainingMs !== null && <KickModal state={state} token={token} refresh={refresh} />}
+      {state.me.kickRemainingMs !== null && <KickModal state={state} token={token} refresh={refresh} apply={apply} />}
     </main>
   );
 }
 
-function KickModal({ state, token, refresh }: { state: RoomState; token: string; refresh: () => Promise<void> }) {
+function KickModal({
+  state,
+  token,
+  refresh,
+  apply,
+}: {
+  state: RoomState;
+  token: string;
+  refresh: () => Promise<void>;
+  apply: (s: RoomState) => void;
+}) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const seconds = useKickCountdown(state.me.kickRemainingMs, state, () => void refresh()) ?? 0;
@@ -240,14 +257,16 @@ function KickModal({ state, token, refresh }: { state: RoomState; token: string;
     setBusy(true);
     setError("");
     try {
-      await api(`/api/rooms/${state.room.code}/kick/ignore`, { token, body: {} });
+      await settle(
+        await api<{ state?: RoomState }>(`/api/rooms/${state.room.code}/kick/ignore`, { token, body: {} }),
+        apply,
+        refresh,
+      );
     } catch (err) {
       // 401 means we were already removed: refresh shows the "removed" flow.
-      if (!(err instanceof ApiRequestError && err.status === 401)) {
-        setError(err instanceof Error ? err.message : "Eroare.");
-      }
+      if (err instanceof ApiRequestError && err.status === 401) await refresh();
+      else setError(err instanceof Error ? err.message : "Eroare.");
     }
-    await refresh();
     setBusy(false);
   }
 

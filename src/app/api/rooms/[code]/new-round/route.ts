@@ -3,7 +3,7 @@ import { db, T } from "@/lib/server/db";
 import { fail, handle, isUniqueViolation } from "@/lib/server/http";
 import { SEATS } from "@/lib/game";
 import { queueOrder } from "@/lib/queue";
-import { listPlayers, requireHost, requireMember, requireStatus } from "@/lib/server/room";
+import { listPlayers, requireHost, requireMember, requireStatus, stateAfter } from "@/lib/server/room";
 
 // POST /api/rooms/[code]/new-round - host, after a game: back to the lobby for a new layout.
 export async function POST(req: Request, ctx: RouteContext<"/api/rooms/[code]/new-round">) {
@@ -45,7 +45,7 @@ export async function POST(req: Request, ctx: RouteContext<"/api/rooms/[code]/ne
         if (sat?.length) break;
       }
     }
-    await notifyRoom(room.id, "new_round");
-    return { ok: true };
+    await notifyRoom(room.id, "new_round", player.id);
+    return { ok: true, state: await stateAfter(room.id, player.id) };
   });
 }

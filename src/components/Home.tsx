@@ -44,7 +44,7 @@ export function Home() {
 
   const pickedRoom = picked && picked.code === code ? picked : null;
   const showPassword = tab === "create" || !(pickedRoom && !pickedRoom.hasPassword);
-  const onlyWatch = pickedRoom !== null && (pickedRoom.status === "playing" || pickedRoom.players >= 2);
+  const onlyWatch = pickedRoom !== null && (pickedRoom.status !== "lobby" || pickedRoom.players >= 2);
 
   async function submit(e: FormEvent) {
     e.preventDefault();
@@ -108,7 +108,6 @@ export function Home() {
 
       {tab === "join" && (
         <Card>
-          <h2 className="mb-3 font-bold">Camere deschise</h2>
           <RoomList selected={pickedRoom?.code ?? null} onSelect={pickRoom} onRejoin={(c) => router.push(`/room/${c}`)} />
         </Card>
       )}

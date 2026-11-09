@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { api } from "@/lib/client/api";
+import { api, settle } from "@/lib/client/api";
 import { PREF_CONFIRM_SHOT, readPref, useBoolPref, writePref } from "@/lib/client/prefs";
 import { cellLabel, DIRS, DIR_LABEL, other, type Dir, type Move, type Seat } from "@/lib/game";
 import {
@@ -23,9 +23,10 @@ interface Props {
   state: RoomState;
   token: string;
   refresh: () => Promise<void>;
+  apply: (s: RoomState) => void;
 }
 
-export function Game({ state, token, refresh, apply }: Props & { apply: (s: RoomState) => void }) {
+export function Game({ state, token, refresh, apply }: Props) {
   const { room, me, players, moves, myPlanes, reveal } = state;
   const finished = room.status === "finished";
   const mySeat = me.seat;
@@ -192,12 +193,12 @@ export function Game({ state, token, refresh, apply }: Props & { apply: (s: Room
 
       <Card>
         <h2 className="mb-1 font-bold">În cameră</h2>
-        <PlayerList state={state} token={token} refresh={refresh} />
+        <PlayerList state={state} token={token} refresh={refresh} apply={apply} />
       </Card>
 
       <MoveLog moves={moves} name={name} />
 
-      {finished && <FinishedActions state={state} token={token} refresh={refresh} />}
+      {finished && <FinishedActions state={state} token={token} refresh={refresh} apply={apply} />}
 
       {showWinner && (
         <WinnerPopup
@@ -382,7 +383,7 @@ function MoveLog({ moves, name }: { moves: Move[]; name: (s: Seat) => string }) 
   );
 }
 
-function FinishedActions({ state, token, refresh }: Props) {
+function FinishedActions({ state, token, refresh, apply }: Props) {
   const { room, me } = state;
   const isHost = room.hostPlayerId === me.id;
   const [busy, setBusy] = useState(false);
@@ -392,8 +393,7 @@ function FinishedActions({ state, token, refresh }: Props) {
     setBusy(true);
     setError("");
     try {
-      await api(`/api/rooms/${room.code}/new-round`, { token, body: {} });
-      await refresh();
+      await settle(await api<{ state?: RoomState }>(`/api/rooms/${room.code}/new-round`, { token, body: {} }), apply, refresh);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Eroare.");
     } finally {

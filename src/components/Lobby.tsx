@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { api } from "@/lib/client/api";
+import { api, settle } from "@/lib/client/api";
 import {
   CELLS,
   DIR_LABEL,
@@ -24,9 +24,10 @@ interface Props {
   state: RoomState;
   token: string;
   refresh: () => Promise<void>;
+  apply: (s: RoomState) => void;
 }
 
-export function Lobby({ state, token, refresh }: Props) {
+export function Lobby({ state, token, refresh, apply }: Props) {
   const { room, me, players } = state;
   const isHost = room.hostPlayerId === me.id;
   const seated = players.filter((p) => p.seat);
@@ -35,7 +36,7 @@ export function Lobby({ state, token, refresh }: Props) {
     <>
       <Card>
         <h2 className="mb-1 font-bold">Jucători</h2>
-        <PlayerList state={state} token={token} refresh={refresh} />
+        <PlayerList state={state} token={token} refresh={refresh} apply={apply} />
         <p className="mt-2 text-xs text-zinc-500">
           {seated.length < 2
             ? "Aștept al doilea jucător. Spectatorii pot intra oricând, și în timpul jocului."
@@ -43,18 +44,18 @@ export function Lobby({ state, token, refresh }: Props) {
         </p>
       </Card>
 
-      {isHost && <HostSettings state={state} token={token} refresh={refresh} />}
+      {isHost && <HostSettings state={state} token={token} refresh={refresh} apply={apply} />}
 
       {me.seat ? (
-        <Placement key={`${room.round}-${room.planesCount}`} state={state} token={token} refresh={refresh} />
+        <Placement key={`${room.round}-${room.planesCount}`} state={state} token={token} refresh={refresh} apply={apply} />
       ) : (
-        <SpectatorLobby state={state} token={token} refresh={refresh} />
+        <SpectatorLobby state={state} token={token} refresh={refresh} apply={apply} />
       )}
     </>
   );
 }
 
-function HostSettings({ state, token, refresh }: Props) {
+function HostSettings({ state, token, refresh, apply }: Props) {
   const { room } = state;
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -64,8 +65,7 @@ function HostSettings({ state, token, refresh }: Props) {
     setBusy(true);
     setError("");
     try {
-      await api(`/api/rooms/${room.code}/settings`, { token, body: { planesCount } });
-      await refresh();
+      await settle(await api<{ state?: RoomState }>(`/api/rooms/${room.code}/settings`, { token, body: { planesCount } }), apply, refresh);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Eroare.");
     } finally {
@@ -96,7 +96,7 @@ function HostSettings({ state, token, refresh }: Props) {
   );
 }
 
-function SpectatorLobby({ state, token, refresh }: Props) {
+function SpectatorLobby({ state, token, refresh, apply }: Props) {
   const { room, players } = state;
   const free = players.filter((p) => p.seat).length < 2;
   const [busy, setBusy] = useState(false);
@@ -106,8 +106,7 @@ function SpectatorLobby({ state, token, refresh }: Props) {
     setBusy(true);
     setError("");
     try {
-      await api(`/api/rooms/${room.code}/sit`, { token, body: {} });
-      await refresh();
+      await settle(await api<{ state?: RoomState }>(`/api/rooms/${room.code}/sit`, { token, body: {} }), apply, refresh);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Eroare.");
     } finally {
@@ -135,7 +134,7 @@ function ghostCells(head: number | null, dir: Dir): number[] {
   return planeCells({ head, dir }) ?? [];
 }
 
-function Placement({ state, token, refresh }: Props) {
+function Placement({ state, token, refresh, apply }: Props) {
   const { room, me, myPlanes } = state;
   const count = room.planesCount;
   const [planes, setPlanes] = useState<Plane[]>(myPlanes ?? []);
@@ -178,8 +177,7 @@ function Placement({ state, token, refresh }: Props) {
     setError("");
     try {
       await api(`/api/rooms/${room.code}/board`, { token, body: { planes } });
-      await api(`/api/rooms/${room.code}/ready`, { token, body: { ready: true } });
-      await refresh();
+      await settle(await api<{ state?: RoomState }>(`/api/rooms/${room.code}/ready`, { token, body: { ready: true } }), apply, refresh);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Eroare.");
     } finally {
@@ -191,9 +189,9 @@ function Placement({ state, token, refresh }: Props) {
     setBusy(true);
     setError("");
     try {
-      await api(`/api/rooms/${room.code}/ready`, { token, body: { ready: false } });
+      const res = await api<{ state?: RoomState }>(`/api/rooms/${room.code}/ready`, { token, body: { ready: false } });
       setPlanes(myPlanes ?? []);
-      await refresh();
+      await settle(res, apply, refresh);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Eroare.");
     } finally {

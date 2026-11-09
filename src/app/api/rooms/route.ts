@@ -6,7 +6,8 @@ import { cleanText, fail, handle, isUniqueViolation, readJson } from "@/lib/serv
 import { cleanupExpiredRooms } from "@/lib/server/room";
 import type { RoomListItem } from "@/lib/types";
 
-// GET /api/rooms - public list of open rooms: lobbies to play in and games to watch.
+// GET /api/rooms - public list of every live room (lobby, playing, finished): lobbies to play in, games to watch.
+// Idle rooms are deleted by cleanupExpiredRooms first, so they never show up.
 export async function GET() {
   await connection(); // always request-time, never prerendered at build
   return handle(async () => {
@@ -14,7 +15,6 @@ export async function GET() {
     const { data, error } = await db()
       .from(T.rooms)
       .select("code, name, planes_count, status, password_hash, last_activity_at, airplanes_players!airplanes_players_room_id_fkey(seat)")
-      .in("status", ["lobby", "playing"])
       .order("last_activity_at", { ascending: false })
       .limit(50);
     if (error) throw error;

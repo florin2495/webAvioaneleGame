@@ -11,7 +11,7 @@ import { finishGame, listPlayers } from "./room";
  *  - a seated player removed during a game: the other player wins
  *  - spectators come and go without touching the game
  */
-export async function removePlayer(room: RoomRow, playerId: string, reason: string): Promise<{ roomClosed: boolean }> {
+export async function removePlayer(room: RoomRow, playerId: string, reason: string, by?: string): Promise<{ roomClosed: boolean }> {
   const all = await listPlayers(room.id);
   const leaving = all.find((p) => p.id === playerId);
   const remaining = all.filter((p) => p.id !== playerId);
@@ -47,7 +47,7 @@ export async function removePlayer(room: RoomRow, playerId: string, reason: stri
   const { error: deleteError } = await db().from(T.players).delete().eq("id", playerId);
   if (deleteError) throw deleteError;
 
-  await notifyRoom(room.id, reason);
+  await notifyRoom(room.id, reason, by);
   return { roomClosed: false };
 }
 

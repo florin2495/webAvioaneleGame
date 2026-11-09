@@ -2,7 +2,7 @@ import { layoutError, randomLayout, type Plane } from "@/lib/game";
 import { notifyRoom } from "@/lib/server/broadcast";
 import { db, T } from "@/lib/server/db";
 import { fail, handle, readJson } from "@/lib/server/http";
-import { requireMember, requireSeat, requireStatus, touchRoom } from "@/lib/server/room";
+import { requireMember, requireSeat, requireStatus, stateAfter, touchRoom } from "@/lib/server/room";
 
 // POST /api/rooms/[code]/board  { generate: true } | { planes: [{ head, dir }] }
 // Saves the caller's hidden layout for this round. Lobby only, and not after "ready".
@@ -29,7 +29,7 @@ export async function POST(req: Request, ctx: RouteContext<"/api/rooms/[code]/bo
       .upsert({ player_id: player.id, room_id: room.id, round: room.round, planes, updated_at: new Date().toISOString() });
     if (error) throw error;
     await touchRoom(room.id);
-    await notifyRoom(room.id, "board");
-    return { planes };
+    await notifyRoom(room.id, "board", player.id);
+    return { planes, state: await stateAfter(room.id, player.id) };
   });
 }

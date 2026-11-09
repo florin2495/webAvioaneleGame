@@ -1,7 +1,7 @@
 import { notifyRoom } from "@/lib/server/broadcast";
 import { db, T } from "@/lib/server/db";
 import { fail, handle } from "@/lib/server/http";
-import { requireMember, touchRoom } from "@/lib/server/room";
+import { requireMember, stateAfter, touchRoom } from "@/lib/server/room";
 
 // POST /api/rooms/[code]/queue - a spectator toggles "Intră la runda următoare". At new-round the queued
 // spectators take the free seats, in the order they queued; the rest stay spectators (and stay queued).
@@ -18,7 +18,7 @@ export async function POST(req: Request, ctx: RouteContext<"/api/rooms/[code]/qu
       .eq("id", player.id);
     if (error) throw error;
     await touchRoom(room.id);
-    await notifyRoom(room.id, "queue");
-    return { ok: true, queued };
+    await notifyRoom(room.id, "queue", player.id);
+    return { ok: true, queued, state: await stateAfter(room.id, player.id) };
   });
 }

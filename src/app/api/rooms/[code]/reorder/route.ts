@@ -2,7 +2,7 @@ import { notifyRoom } from "@/lib/server/broadcast";
 import { db, T } from "@/lib/server/db";
 import { planReorder } from "@/lib/queue";
 import { fail, handle, readJson } from "@/lib/server/http";
-import { listPlayers, requireHost, requireMember, requireStatus, touchRoom } from "@/lib/server/room";
+import { listPlayers, requireHost, requireMember, requireStatus, stateAfter, touchRoom } from "@/lib/server/room";
 
 // POST /api/rooms/[code]/reorder  { order: [playerId, ...] } - host only, lobby / between rounds only.
 // `order` is a permutation of the seated players (spectator ids may be included, they are ignored): the
@@ -32,7 +32,7 @@ export async function POST(req: Request, ctx: RouteContext<"/api/rooms/[code]/re
     await move(first, 2, 1);
     await move(second, null, 2);
     await touchRoom(room.id);
-    await notifyRoom(room.id, "reorder");
-    return { ok: true };
+    await notifyRoom(room.id, "reorder", player.id);
+    return { ok: true, state: await stateAfter(room.id, player.id) };
   });
 }

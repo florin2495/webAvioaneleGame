@@ -2,7 +2,7 @@ import { isValidPlanesCount } from "@/lib/game";
 import { notifyRoom } from "@/lib/server/broadcast";
 import { db, T } from "@/lib/server/db";
 import { fail, handle, readJson } from "@/lib/server/http";
-import { requireHost, requireMember, requireStatus, touchRoom } from "@/lib/server/room";
+import { requireHost, requireMember, requireStatus, stateAfter, touchRoom } from "@/lib/server/room";
 
 // POST /api/rooms/[code]/settings  { planesCount } - host, lobby only.
 // Changing the number of planes throws away this round's layouts and everyone's "ready".
@@ -30,7 +30,7 @@ export async function POST(req: Request, ctx: RouteContext<"/api/rooms/[code]/se
     if (boards.error) throw boards.error;
     if (ready.error) throw ready.error;
     await touchRoom(room.id);
-    await notifyRoom(room.id, "settings");
-    return { ok: true };
+    await notifyRoom(room.id, "settings", player.id);
+    return { ok: true, state: await stateAfter(room.id, player.id) };
   });
 }

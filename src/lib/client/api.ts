@@ -1,6 +1,6 @@
 "use client";
 
-import type { Session } from "@/lib/types";
+import type { RoomState, Session } from "@/lib/types";
 
 const SESSION_PREFIX = "avioane:session:";
 const DEVICE_KEY = "avioane:device";
@@ -143,4 +143,14 @@ export async function api<T = { ok: true }>(
   const data = await res.json().catch(() => ({}));
   if (!res.ok) throw new ApiRequestError(res.status, data.error ?? `Eroare ${res.status}`);
   return data as T;
+}
+
+/** Shows the state a mutating route answered with at once; only an answer without one costs a /state. */
+export async function settle(
+  res: { state?: RoomState },
+  apply: (s: RoomState) => void,
+  refresh: () => Promise<void>,
+): Promise<void> {
+  if (res.state) apply(res.state);
+  else await refresh();
 }

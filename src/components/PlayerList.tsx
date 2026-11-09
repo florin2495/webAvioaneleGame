@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { api } from "@/lib/client/api";
+import { api, settle } from "@/lib/client/api";
 import { useKickCountdown } from "@/lib/client/kick";
 import { startSeat } from "@/lib/game";
 import type { RoomState } from "@/lib/types";
@@ -23,7 +23,17 @@ export function OfflineBadge({ connected }: { connected: boolean | undefined }) 
   );
 }
 
-export function PlayerList({ state, token, refresh }: { state: RoomState; token: string; refresh: () => Promise<void> }) {
+export function PlayerList({
+  state,
+  token,
+  refresh,
+  apply,
+}: {
+  state: RoomState;
+  token: string;
+  refresh: () => Promise<void>;
+  apply: (s: RoomState) => void;
+}) {
   const { players, me, room } = state;
   const canKick = room.hostPlayerId === me.id;
   const [busy, setBusy] = useState<string | null>(null);
@@ -40,8 +50,7 @@ export function PlayerList({ state, token, refresh }: { state: RoomState; token:
     try {
       // Swap the two seats: the player now on seat 2 goes first.
       const order = [...seated].reverse().map((p) => p.id);
-      await api(`/api/rooms/${room.code}/reorder`, { token, body: { order } });
-      await refresh();
+      await settle(await api<{ state?: RoomState }>(`/api/rooms/${room.code}/reorder`, { token, body: { order } }), apply, refresh);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Eroare.");
     } finally {
@@ -53,8 +62,7 @@ export function PlayerList({ state, token, refresh }: { state: RoomState; token:
     setBusy("queue");
     setError("");
     try {
-      await api(`/api/rooms/${room.code}/queue`, { token, body: {} });
-      await refresh();
+      await settle(await api<{ state?: RoomState }>(`/api/rooms/${room.code}/queue`, { token, body: {} }), apply, refresh);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Eroare.");
     } finally {
@@ -69,8 +77,7 @@ export function PlayerList({ state, token, refresh }: { state: RoomState; token:
     setBusy(id);
     setError("");
     try {
-      await api(`/api/rooms/${room.code}/kick`, { token, body: { playerId: id } });
-      await refresh();
+      await settle(await api<{ state?: RoomState }>(`/api/rooms/${room.code}/kick`, { token, body: { playerId: id } }), apply, refresh);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Eroare.");
     } finally {

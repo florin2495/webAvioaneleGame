@@ -225,6 +225,20 @@ export async function buildState(room: RoomRow, me: PlayerRow, data?: RoundData)
 }
 
 /**
+ * The caller's state after a mutation, re-read from the DB (the room row and the member may have changed).
+ * Mutating routes return it so the client needs no /state afterwards.
+ */
+export async function stateAfter(roomId: string, playerId: string): Promise<RoomState> {
+  const [room, me] = await Promise.all([
+    db().from(T.rooms).select(ROOM_COLUMNS).eq("id", roomId).single(),
+    db().from(T.players).select(PLAYER_COLUMNS).eq("id", playerId).single(),
+  ]);
+  if (room.error) throw room.error;
+  if (me.error) throw me.error;
+  return buildState(room.data as RoomRow, me.data as PlayerRow);
+}
+
+/**
  * Ends a running game with `winnerId`. Conditional, so only one request can finish it; that one also
  * reports the round to the shared leaderboard (once per room + round).
  */

@@ -18,14 +18,18 @@ export function RoomList({
 }) {
   const [rooms, setRooms] = useState<RoomListItem[] | null>(null);
   const [error, setError] = useState("");
+  const [loading, setLoading] = useState(true);
 
   const load = useCallback(async () => {
+    setLoading(true);
     try {
       const res = await api<{ rooms: RoomListItem[] }>("/api/rooms");
       setRooms(res.rooms);
       setError("");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Eroare.");
+    } finally {
+      setLoading(false);
     }
   }, []);
 
@@ -39,18 +43,17 @@ export function RoomList({
     };
   }, [load]);
 
+  let content;
   if (rooms === null) {
-    return <p className="py-4 text-center text-sm text-zinc-500">{error || "Caut camere…"}</p>;
-  }
-  if (rooms.length === 0) {
-    return (
+    content = <p className="py-4 text-center text-sm text-zinc-500">{error || "Caut camere…"}</p>;
+  } else if (rooms.length === 0) {
+    content = (
       <p className="py-4 text-center text-sm text-zinc-500">
-        Nicio cameră deschisă acum. Creează una sau introdu un cod mai jos.
+        {error || "Nicio cameră deschisă acum. Creează una sau introdu un cod mai jos."}
       </p>
     );
-  }
-
-  return (
+  } else {
+    content = (
     <ul className="flex flex-col gap-2">
       {rooms.map((r) => {
         const mine = parseSession(readSessionRaw(r.code)) !== null;
@@ -72,7 +75,7 @@ export function RoomList({
                   {r.name}
                 </span>
                 <span className="block text-xs text-zinc-500">
-                  {r.status === "playing" ? "🔥 se joacă" : "lobby"} · {r.players}/2 jucători
+                  {{ lobby: "Lobby", playing: "🔥 În joc", finished: "Terminat" }[r.status]} · {r.players}/2 jucători
                   {r.spectators > 0 && ` · ${r.spectators} ${r.spectators === 1 ? "spectator" : "spectatori"}`} ·{" "}
                   {r.planesCount} avioane
                 </span>
@@ -80,7 +83,7 @@ export function RoomList({
               <span className="shrink-0 text-right">
                 <span className="block font-mono text-sm font-bold tracking-widest">{r.code}</span>
                 <span className="block text-[10px] font-semibold uppercase text-indigo-600 dark:text-indigo-400">
-                  {mine ? "Reintră" : r.status === "playing" || r.players >= 2 ? "Privește" : "Joacă"}
+                  {mine ? "Reintră" : r.status !== "lobby" || r.players >= 2 ? "Privește" : "Joacă"}
                 </span>
               </span>
             </button>
@@ -88,5 +91,38 @@ export function RoomList({
         );
       })}
     </ul>
+    );
+  }
+
+  return (
+    <>
+      <div className="mb-3 flex items-center justify-between gap-2">
+        <h2 className="font-bold">Camere deschise</h2>
+        <button
+          type="button"
+          onClick={() => void load()}
+          aria-label="Reîncarcă camerele"
+          title="Reîncarcă camerele"
+          className="flex h-9 w-9 items-center justify-center rounded-lg border border-zinc-300 text-zinc-600 hover:bg-zinc-100 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-800"
+        >
+          <svg
+            viewBox="0 0 24 24"
+            width="20"
+            height="20"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            aria-hidden="true"
+            className={loading ? "animate-spin" : ""}
+          >
+            <path d="M21 12a9 9 0 1 1-2.64-6.36" />
+            <path d="M21 3v6h-6" />
+          </svg>
+        </button>
+      </div>
+      {content}
+    </>
   );
 }
