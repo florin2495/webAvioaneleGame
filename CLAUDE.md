@@ -42,6 +42,14 @@ client-only (`src/lib/notes.ts`, localStorage); the old "guess the shape" move/e
 
 Feedback (`POST /api/feedback`) writes to `hub_feedback` (owned by `florin2495/hailataticu-hub`, slug `airplanes`); this game must not be deployed before that table exists.
 
+## Abandoned rooms (120 s)
+- `GET /api/rooms` (the room list behind "Intră în cameră") also runs `cleanupAbandonedRooms` (`src/lib/server/room.ts`):
+  every room in ANY status (also `playing`) whose `last_activity_at` is older than `ROOM_ABANDONED_MS` (120 s, `game.ts`)
+  and with no member (player or spectator, both are `airplanes_players` rows) `last_seen_at` within 120 s is deleted
+  (players, boards and moves cascade). Open room pages keep both fresh (`/state` polls every 15 s, touching
+  `last_seen_at` every 10 s and `last_activity_at` every 20 s), so only rooms nobody has open disappear. The 10/30-minute
+  idle expiry stays too.
+
 ## Testing
 - `npm test` (Vitest, pure rules in `src/lib/game.ts`), `npx tsc --noEmit`, `npx eslint src`, `npx next build`.
 - End-to-end: drive the real API with two players and a spectator (create, join, board, ready -> auto start,

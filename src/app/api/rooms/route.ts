@@ -3,15 +3,16 @@ import { isValidPlanesCount, NICKNAME_MAX, PLANES_DEFAULT } from "@/lib/game";
 import { hashDeviceId, hashPassword, hashToken, newPlayerToken, newRoomCode } from "@/lib/server/crypto";
 import { db, T } from "@/lib/server/db";
 import { cleanText, fail, handle, isUniqueViolation, readJson } from "@/lib/server/http";
-import { cleanupExpiredRooms } from "@/lib/server/room";
+import { cleanupAbandonedRooms, cleanupExpiredRooms } from "@/lib/server/room";
 import type { RoomListItem } from "@/lib/types";
 
 // GET /api/rooms - public list of every live room (lobby, playing, finished): lobbies to play in, games to watch.
-// Idle rooms are deleted by cleanupExpiredRooms first, so they never show up.
+// Idle rooms are deleted by cleanupExpiredRooms first, so they never show up; abandoned rooms in any status
+// (no member seen and no activity for 120 s, cleanupAbandonedRooms) are swept at the same time.
 export async function GET() {
   await connection(); // always request-time, never prerendered at build
   return handle(async () => {
-    await cleanupExpiredRooms();
+    await Promise.all([cleanupExpiredRooms(), cleanupAbandonedRooms()]);
     const { data, error } = await db()
       .from(T.rooms)
       .select("code, name, planes_count, status, password_hash, last_activity_at, airplanes_players!airplanes_players_room_id_fkey(seat)")
