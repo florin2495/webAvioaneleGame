@@ -154,7 +154,7 @@ export function Game({ state, token, refresh, apply }: Props) {
           sub={`${name(bottomSeat)} a doborât ${room.downed[topSeat]}/${room.planesCount}`}
           connected={mySeat ? undefined : bySeat(topSeat)?.connected}
         />
-        <Board cells={top} label={mySeat ? "Tabla mea" : `Tabla lui ${name(topSeat)}`} dim={myTurn} />
+        <Board cells={top} label={mySeat ? "Tabla mea" : `Tabla lui ${name(topSeat)}`} dim={myTurn} testId="board" seat={topSeat} />
       </Card>
 
       <Card className={`p-3 ${myTurn ? "ring-2 ring-indigo-500" : ""}`}>
@@ -163,7 +163,14 @@ export function Game({ state, token, refresh, apply }: Props) {
           sub={`${mySeat ? "Ai doborât" : `${name(topSeat)} a doborât`} ${room.downed[bottomSeat]}/${room.planesCount}`}
           connected={bySeat(bottomSeat)?.connected}
         />
-        <Board cells={bottom} onCell={tapTarget} label={`Tabla lui ${name(bottomSeat)}`} dim={!myTurn && !!mySeat} />
+        <Board
+          cells={bottom}
+          onCell={tapTarget}
+          label={`Tabla lui ${name(bottomSeat)}`}
+          dim={!myTurn && !!mySeat}
+          testId="board"
+          seat={bottomSeat}
+        />
 
         {canNote && (
           <NoteTools
@@ -229,6 +236,7 @@ function StatusBanner({ state, name }: { state: RoomState; name: (s: Seat) => st
   const last = moves.at(-1);
   let text: string;
   let tone = "bg-zinc-200 text-zinc-800 dark:bg-zinc-800 dark:text-zinc-100";
+  let turn: "me" | "other" | "none" = "none";
 
   if (room.status === "finished") {
     const w = state.players.find((p) => p.id === room.winnerPlayerId);
@@ -238,6 +246,7 @@ function StatusBanner({ state, name }: { state: RoomState; name: (s: Seat) => st
     const mine = room.turnSeat !== null && room.turnSeat === me.seat;
     const again = last && last.seat === room.turnSeat && (last.result === "hit" || last.result === "head");
     const prefix = lastText(last, name);
+    turn = mine ? "me" : "other";
     if (mine) {
       text = `${prefix}${again ? "Mai tragi o dată!" : "E rândul tău. Trage pe tabla de jos."}`;
       tone = "bg-indigo-600 text-white";
@@ -247,7 +256,7 @@ function StatusBanner({ state, name }: { state: RoomState; name: (s: Seat) => st
   }
 
   return (
-    <p role="status" aria-live="polite" className={`rounded-xl px-4 py-3 text-center text-sm font-semibold ${tone}`}>
+    <p role="status" aria-live="polite" data-testid="status-banner" data-turn={turn} className={`rounded-xl px-4 py-3 text-center text-sm font-semibold ${tone}`}>
       {text}
     </p>
   );
@@ -289,7 +298,7 @@ function NoteTools({
   const btn = (active: boolean) =>
     `min-h-10 rounded-lg px-2 text-sm font-semibold ${active ? "bg-indigo-600 text-white" : "bg-zinc-200 dark:bg-zinc-800"}`;
   return (
-    <div className="mt-3 rounded-xl border border-zinc-200 p-2 dark:border-zinc-800">
+    <div data-testid="note-tools" className="mt-3 rounded-xl border border-zinc-200 p-2 dark:border-zinc-800">
       <div className="grid grid-cols-2 gap-1">
         <button type="button" aria-pressed={tool === "mark"} onClick={() => toggle("mark")} className={btn(tool === "mark")}>
           ✕ Marchez X
@@ -405,7 +414,7 @@ function FinishedActions({ state, token, refresh, apply }: Props) {
     <Card className="text-center">
       <p className="text-sm text-zinc-500">Acum se văd avioanele amândurora.</p>
       {isHost ? (
-        <Button className="mt-3 w-full" onClick={() => void newRound()} disabled={busy}>
+        <Button className="mt-3 w-full" onClick={() => void newRound()} disabled={busy} data-testid="new-round">
           {busy ? "…" : "Rundă nouă"}
         </Button>
       ) : (
@@ -429,7 +438,14 @@ function WinnerPopup({
 }) {
   const mine = winner?.id === me.id;
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-6" role="dialog" aria-modal="true" onClick={onClose}>
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-6"
+      role="dialog"
+      aria-modal="true"
+      aria-label="Câștigător"
+      data-testid="winner-dialog"
+      onClick={onClose}
+    >
       <div className="w-full max-w-xs rounded-2xl bg-white p-6 text-center shadow-xl dark:bg-zinc-900" onClick={(e) => e.stopPropagation()}>
         <p className="text-5xl" aria-hidden>
           {mine ? "🏆" : winner ? "✈️" : "🏁"}
@@ -446,7 +462,7 @@ function WinnerPopup({
                 ? "Ți-au fost doborâte toate avioanele."
                 : "Toate avioanele adversarului au fost doborâte."}
         </p>
-        <Button className="mt-5 w-full" onClick={onClose}>
+        <Button className="mt-5 w-full" onClick={onClose} data-testid="winner-close">
           Vezi tablele
         </Button>
       </div>

@@ -330,7 +330,7 @@ function LeaveButton({ state, token }: { state: RoomState; token: string }) {
 
   return (
     <div className="pb-6 pt-2 text-center">
-      <Button variant="danger" className="w-full" onClick={() => void leave()} disabled={busy}>
+      <Button variant="danger" className="w-full" onClick={() => void leave()} disabled={busy} data-testid="leave">
         {busy ? "Se iese…" : room.status === "playing" && me.seat ? "Părăsește jocul" : "Părăsește camera"}
       </Button>
       <div className="mt-2">
@@ -370,7 +370,7 @@ function RoomHeader({ state }: { state: RoomState }) {
         <h1 className="truncate text-xl font-black">{room.name}</h1>
         <p className="text-xs text-zinc-500">
           {room.planesCount} avioane · runda {room.round} · {statusLabel}
-          {state.me.seat === null && " · ești spectator"}
+          {state.me.seat === null && <span data-testid="spectator-badge"> · ești spectator</span>}
         </p>
       </div>
       <div className="flex shrink-0 flex-col items-end gap-1.5">
@@ -439,7 +439,7 @@ function JoinForm({ code }: { code: string }) {
             autoComplete="off"
           />
           <ErrorText>{error}</ErrorText>
-          <Button type="submit" disabled={busy}>
+          <Button type="submit" disabled={busy} data-testid="join-submit">
             {busy ? "Se încarcă…" : "Intră"}
           </Button>
         </form>

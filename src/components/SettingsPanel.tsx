@@ -17,7 +17,9 @@ export function SettingsPanel() {
             <span className="text-xs transition-transform group-open:rotate-90">▶</span>
             Setări
           </span>
-          <span className="font-mono text-xs text-zinc-500">v{VERSION}</span>
+          <span className="font-mono text-xs text-zinc-500" data-testid="app-version">
+            v{VERSION}
+          </span>
         </summary>
         <div className="pb-1 pt-1">
           <Toggle

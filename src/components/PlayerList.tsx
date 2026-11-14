@@ -87,7 +87,7 @@ export function PlayerList({
 
   return (
     <>
-      <ul className="flex flex-col divide-y divide-zinc-200 dark:divide-zinc-800">
+      <ul data-testid="player-list" className="flex flex-col divide-y divide-zinc-200 dark:divide-zinc-800">
         {players.map((p) => {
           const isTurn = room.status === "playing" && p.seat !== null && room.turnSeat === p.seat;
           const isWinner = room.winnerPlayerId === p.id;
@@ -166,6 +166,7 @@ export function PlayerList({
       {canQueue && (
         <button
           type="button"
+          data-testid="queue-toggle"
           onClick={() => void toggleQueue()}
           disabled={busy !== null}
           className={`mt-2 min-h-11 w-full rounded-xl px-4 text-sm font-semibold disabled:opacity-40 ${

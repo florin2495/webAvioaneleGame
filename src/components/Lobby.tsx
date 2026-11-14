@@ -116,7 +116,9 @@ function SpectatorLobby({ state, token, refresh, apply }: Props) {
 
   return (
     <Card className="text-center">
-      <p className="font-semibold">👀 Ești spectator</p>
+      <p className="font-semibold" data-testid="spectator-lobby">
+        👀 Ești spectator
+      </p>
       <p className="mt-1 text-sm text-zinc-500">Vezi loviturile amândurora. Avioanele se arată doar la final.</p>
       {free && (
         <Button className="mt-3 w-full" onClick={() => void sit()} disabled={busy}>
@@ -249,7 +251,7 @@ function Placement({ state, token, refresh, apply }: Props) {
 
       {ready ? (
         <div className="mt-3 flex flex-col gap-2">
-          <p className="text-center text-sm font-semibold text-emerald-600 dark:text-emerald-400">✓ Ești gata. Aștept adversarul…</p>
+          <p data-testid="ready-status" className="text-center text-sm font-semibold text-emerald-600 dark:text-emerald-400">✓ Ești gata. Aștept adversarul…</p>
           <Button variant="secondary" onClick={() => void unready()} disabled={busy}>
             Modifică avioanele
           </Button>
@@ -258,6 +260,7 @@ function Placement({ state, token, refresh, apply }: Props) {
         <div className="mt-3 grid grid-cols-2 gap-2">
           <Button
             variant="secondary"
+            data-testid="random-layout"
             onClick={() => {
               setPlanes(randomLayout(count));
               setError("");
@@ -268,7 +271,12 @@ function Placement({ state, token, refresh, apply }: Props) {
           <Button variant="secondary" onClick={() => setPlanes([])} disabled={planes.length === 0}>
             Șterge tot
           </Button>
-          <Button className="col-span-2" onClick={() => void confirm()} disabled={busy || planes.length !== count}>
+          <Button
+            className="col-span-2"
+            onClick={() => void confirm()}
+            disabled={busy || planes.length !== count}
+            data-testid="ready"
+          >
             {busy ? "Se salvează…" : planes.length === count ? "Gata, sunt pregătit" : `Mai ai ${count - planes.length} de așezat`}
           </Button>
         </div>
@@ -295,7 +303,7 @@ function BoardWithHover({
         onHover(el ? Number(el.dataset.cell) : null);
       }}
     >
-      <Board cells={cells} onCell={onCell} label="Tabla ta" />
+      <Board cells={cells} onCell={onCell} label="Tabla ta" testId="placement-board" />
     </div>
   );
 }

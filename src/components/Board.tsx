@@ -27,17 +27,25 @@ export function Board({
   onCell,
   label,
   dim,
+  testId,
+  seat,
 }: {
   cells: CellView[];
   onCell?: (cell: number) => void;
   label: string;
   /** Faded look when it is not the viewer's turn to act on this board. */
   dim?: boolean;
+  /** data-testid for the UI tests ("board" in the game, "placement-board" in the lobby). */
+  testId?: string;
+  /** Whose board this is (the seat being shot at), as data-seat for the UI tests. */
+  seat?: Seat;
 }) {
   return (
     <div
       role="grid"
       aria-label={label}
+      data-testid={testId}
+      data-seat={seat}
       className={`grid select-none gap-px rounded-lg bg-sky-200 p-px text-[10px] transition-opacity dark:bg-sky-900 ${dim ? "opacity-70" : ""}`}
       style={{ gridTemplateColumns: `1.1rem repeat(${BOARD}, minmax(0, 1fr))` }}
     >
@@ -69,6 +77,8 @@ function Row({ r, cells, onCell }: { r: number; cells: CellView[]; onCell?: (cel
             type="button"
             role="gridcell"
             data-cell={i}
+            data-shot={v.shot}
+            data-plane={v.plane}
             aria-label={`${cellLabel(i)}${describe(v)}`}
             disabled={!v.clickable || !onCell}
             onClick={() => onCell?.(i)}
