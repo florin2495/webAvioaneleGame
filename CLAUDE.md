@@ -3,7 +3,7 @@
 # webAvioaneleGame - project notes for Claude
 
 ## Accounts and deploy
-- GitHub: personal account **florin2495** only (repo `florin2495/webAvioaneleGame`, private). Never the work account.
+- GitHub: personal account **florin2495** only (repo `florin2495/webAvioaneleGame`, public). Never the work account.
   Local git identity is pinned in `.git/config`.
 - Vercel project is connected by the user by hand. Once it is, every push to `main` deploys to production
   (served at `games.hailatat.icu/airplanes` via a multi-zones rewrite in the hub `florin2495/hailataticu-hub` to `web-avioanele-game.vercel.app/airplanes`; `basePath` is `/airplanes`, so client `fetch`/share URLs must add `NEXT_PUBLIC_BASE_PATH`).
@@ -51,7 +51,8 @@ Feedback (`POST /api/feedback`) writes to `hub_feedback` (owned by `florin2495/h
   idle expiry stays too.
 
 ## Testing (GitHub Actions, manual only)
-All checks run in GitHub Actions, never locally unless the user explicitly asks. Every workflow is `workflow_dispatch`
+Tests run only in GitHub Actions on the free tier (the repo is public, so Actions minutes are free): `ubuntu-latest`
+runners only, never billed / larger / macOS runners, and never locally (see `D:\_DEv\CLAUDE.md`). Every workflow is `workflow_dispatch`
 only (no automatic trigger): nothing gates a push, and Vercel deploys `main` regardless.
 Start one with `gh workflow run <file> --ref main`, then `gh run watch` (or the Actions tab, "Run workflow").
 
