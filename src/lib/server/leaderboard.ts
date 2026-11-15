@@ -6,6 +6,11 @@ import { isUniqueViolation } from "./http";
 // migration 002_hub_leaderboard.sql; until it runs every report fails quietly (the game is never affected).
 const GAME_SLUG = "airplanes";
 
+/** Rooms created by the e2e tests (scripts/e2e.mjs, tests/ui) never reach the shared leaderboard. */
+export function isTestRoom(roomName: string): boolean {
+  return roomName.startsWith("e2e-test-");
+}
+
 /** Same person = same nickname, case and surrounding spaces ignored (there are no accounts). */
 export const playerKey = (nickname: string) => nickname.trim().toLowerCase().slice(0, 40);
 
@@ -48,6 +53,7 @@ async function bump(key: string, name: string, won: boolean): Promise<void> {
  * Best effort - never throws.
  */
 export async function reportRound(room: RoomRow, members: PlayerRow[], winnerId: string | null): Promise<void> {
+  if (isTestRoom(room.name)) return;
   try {
     if (!winnerId) return; // nobody won (the winner left too): not a result
     const seated = members.filter((p) => p.seat !== null);
