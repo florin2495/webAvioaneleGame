@@ -1,6 +1,6 @@
 # Avioanele
 
-Jocul clasic de avioane, în doi, pe telefon. Încă doi prieteni pot intra ca spectatori, și în timpul jocului.
+Jocul clasic de avioane, în doi, pe telefon. Prietenii pot intra ca spectatori, și în timpul jocului.
 Același stil și aceeași arhitectură ca [Bingo](https://github.com/florin2495/webBingoGame): Next.js pe Vercel, Supabase pentru date și Realtime.
 
 ## Reguli

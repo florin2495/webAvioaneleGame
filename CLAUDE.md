@@ -22,7 +22,7 @@ Migrations are run by hand in the Supabase SQL editor, so this list is the sourc
 | `supabase/schema.sql` (initial) | yes (2026-11-06, verified) | `airplanes_rooms`, `airplanes_players`, `airplanes_boards`, `airplanes_moves` |
 | `supabase/migrations/001_pending_kick.sql` | yes (2026-11-07, verified) | `airplanes_players.kick_requested_at timestamptz` (pending kick during a game). Do not push the kick-with-ignore code before it is run. |
 | `supabase/migrations/002_reconnect.sql` | yes (2026-11-07, verified: service role 200, anon 401) | `airplanes_players.last_seen_at`, `device_hash` + index (rejoin the same seat). Do not push the reconnect code before it is run. |
-| `supabase/migrations/003_spectator_queue.sql` | yes (2026-11-08, verified by effect) | `airplanes_players.queued_at timestamptz` (spectator queue "Intră la runda următoare"). Every query selects this column (`PLAYER_COLUMNS`), so do not push before it is run. |
+| `supabase/migrations/003_spectator_queue.sql` | yes (2026-11-08, verified by effect; re-verified 2026-11-14 by effect: production E2E exercises its columns) | `airplanes_players.queued_at timestamptz` (spectator queue "Intră la runda următoare"). Every query selects this column (`PLAYER_COLUMNS`), so do not push before it is run. |
 
 Rules for schema changes:
 - New migration = new numbered file in `supabase/migrations/`, additive when possible, folded into `supabase/schema.sql` too.
@@ -31,7 +31,7 @@ Rules for schema changes:
 
 Rejoin the same seat (`src/lib/reconnect.ts`): every member request stamps `last_seen_at` (at most every 10 s);
 re-joining with an existing nickname reclaims that member row (new token; seat, ready flag and planes kept) from the
-same device (`device_hash`) or once it has been unseen for 45 s, also mid-game. `/state` exposes only a derived
+same device (`device_hash`) or once it has been unseen for 301 s (`DISCONNECT_MS`), also mid-game. `/state` exposes only a derived
 `connected` flag ("deconectat" badge). Lobby/finished rooms close after 10 idle minutes, games after 30.
 
 Leaderboard (`src/lib/server/leaderboard.ts`): when a round ends (last head, or a player leaves mid-game) `finishGame` reports to the hub's
@@ -42,13 +42,15 @@ client-only (`src/lib/notes.ts`, localStorage); the old "guess the shape" move/e
 
 Feedback (`POST /api/feedback`) writes to `hub_feedback` (owned by `florin2495/hailataticu-hub`, slug `airplanes`); this game must not be deployed before that table exists.
 
-## Abandoned rooms (120 s)
+## Abandoned rooms (600 s)
 - `GET /api/rooms` (the room list behind "Intră în cameră") also runs `cleanupAbandonedRooms` (`src/lib/server/room.ts`):
-  every room in ANY status (also `playing`) whose `last_activity_at` is older than `ROOM_ABANDONED_MS` (120 s, `game.ts`)
-  and with no member (player or spectator, both are `airplanes_players` rows) `last_seen_at` within 120 s is deleted
-  (players, boards and moves cascade). Open room pages keep both fresh (`/state` polls every 15 s, touching
-  `last_seen_at` every 10 s and `last_activity_at` every 20 s), so only rooms nobody has open disappear. The 10/30-minute
-  idle expiry stays too.
+  every room in ANY status (also `playing`) whose `last_activity_at` is older than `ROOM_ABANDONED_MS` (600 s, `game.ts`)
+  and with no member (player or spectator, both are `airplanes_players` rows) `last_seen_at` within 600 s is deleted
+  (players, boards and moves cascade). Open room pages keep both fresh (`/state` polls every 60 s, `POLL_MS` in
+  `RoomClient.tsx`; each request touches `last_seen_at` at most every 10 s and `last_activity_at` at most every 20 s), so
+  only rooms nobody has open disappear. The 10/30-minute idle expiry stays too. A missing room shows the neutral
+  "Camera nu mai există (a fost închisă după inactivitate)." (`GONE`), with no fixed duration.
+- Rooms named `e2e-test-…` never reach the hub leaderboard (`isTestRoom` in `leaderboard.ts`).
 
 ## Testing (GitHub Actions, manual only)
 Tests run only in GitHub Actions on the free tier (the repo is public, so Actions minutes are free): `ubuntu-latest`
@@ -59,7 +61,7 @@ Start one with `gh workflow run <file> --ref main`, then `gh run watch` (or the 
 | Workflow | Runs |
 | --- | --- |
 | `.github/workflows/check.yml` "Check code" | `npx next typegen` + `npx tsc --noEmit` (typegen first, so route types in `.next/types` are checked), `npx eslint src`, `npx next build`. Every step runs even if an earlier one failed |
-| `.github/workflows/unit-tests.yml` "Unit tests" | `npm test` (Vitest: `src/lib/*.test.ts`, pure logic, no DB) |
+| `.github/workflows/unit-tests.yml` "Unit tests" | `npm test` (Vitest: `src/lib/*.test.ts` pure logic, plus `src/lib/server/*.test.ts` with the DB client mocked via `vi.mock`; `vitest.config.ts` only maps the `@/` alias) |
 | `.github/workflows/e2e.yml` "E2E" | `node scripts/e2e.mjs <base_url>` (input, default production `https://games.hailatat.icu/airplanes`); one run at a time |
 | `.github/workflows/e2e-ui.yml` "E2E UI (Playwright)" | `npx playwright test` (`playwright.config.ts`, tests in `tests/ui/*.e2e.ts`) against `base_url` (`E2E_BASE_URL`, default production), on desktop Chromium and an emulated iPhone 13 (WebKit). Same concurrency group as "E2E". On failure the report (traces, screenshots, videos) is uploaded as the `playwright-report` artifact |
 
@@ -76,7 +78,7 @@ Start one with `gh workflow run <file> --ref main`, then `gh run watch` (or the 
   leave mid-game (the other wins), host handover, last one out closes the room. Rooms are named `e2e-test-…` and deleted
   at the end; it never calls `/api/feedback`.
 - What E2E UI does (`tests/ui/`, shared steps in `helpers.ts`; every change must reach the other screens within 5 s
-  without a reload, polling is 15 s, so this checks Realtime). Rooms use 2 planes; the tests aim by reading the
+  without a reload, polling is 60 s, so this checks Realtime). Rooms use 2 planes; the tests aim by reading the
   opponent's planes from `/state` with the token the page stored (`avioane:session:<code>`), so no move is hard-coded:
   - `game.e2e.ts` (both projects): two browser contexts (= two devices) create a room, join by link, random planes,
     ready (auto start), the first shooter misses, the other misses back, the first downs every head (heads keep the

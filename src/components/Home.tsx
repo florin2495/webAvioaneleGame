@@ -203,7 +203,7 @@ export function Home() {
           </li>
           <li>Câștigă cine doboară primul toate avioanele adversarului.</li>
           <li>Sus e tabla ta, jos e tabla adversarului, unde tragi. Poți trage oriunde, și lângă un avion găsit.</li>
-          <li>Până la 16 spectatori pot intra chiar dacă jocul a început și pot cere „Intră la runda următoare”.</li>
+          <li>Spectatorii pot intra chiar dacă jocul a început și pot cere „Intră la runda următoare”.</li>
         </ol>
       </details>
     </main>
