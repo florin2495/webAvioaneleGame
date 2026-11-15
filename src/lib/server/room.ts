@@ -2,7 +2,6 @@ import "server-only";
 import {
   isRoomAbandoned,
   isRoomExpired,
-  minutesLabel,
   replay,
   ROOM_ABANDONED_MS,
   ROOM_IDLE_MINUTES,
@@ -21,7 +20,7 @@ import { fail } from "./http";
 import { reportRound } from "./leaderboard";
 import { enforceExpiredKicks } from "./membership";
 
-const GONE = `Camera nu există sau a fost închisă după ${minutesLabel(ROOM_IDLE_MINUTES)} de inactivitate.`;
+const GONE = "Camera nu mai există (a fost închisă după inactivitate).";
 
 export function normalizeCode(code: string): string {
   const c = decodeURIComponent(code).trim().toUpperCase();

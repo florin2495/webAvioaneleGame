@@ -19,7 +19,7 @@ interface MemberRow {
 // POST /api/rooms/[code]/join  { nickname, password?, spectator?, deviceId? }
 // Takes a free seat while the room is in the lobby; otherwise (or on request) joins as a spectator.
 // A nickname that is already in the room reclaims that member (same player id, seat, ready flag and planes,
-// new token) when the request comes from the same device or the member has been disconnected for 45 s -
+// new token) when the request comes from the same device or the member has been disconnected for 301 s -
 // also mid-game.
 export async function POST(req: Request, ctx: RouteContext<"/api/rooms/[code]/join">) {
   return handle(async () => {

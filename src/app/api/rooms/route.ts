@@ -8,7 +8,7 @@ import type { RoomListItem } from "@/lib/types";
 
 // GET /api/rooms - public list of every live room (lobby, playing, finished): lobbies to play in, games to watch.
 // Idle rooms are deleted by cleanupExpiredRooms first, so they never show up; abandoned rooms in any status
-// (no member seen and no activity for 120 s, cleanupAbandonedRooms) are swept at the same time.
+// (no member seen and no activity for 600 s, cleanupAbandonedRooms) are swept at the same time.
 export async function GET() {
   await connection(); // always request-time, never prerendered at build
   return handle(async () => {

@@ -15,7 +15,7 @@ export interface PublicPlayer {
   queued: boolean;
   /** 1-based place in the queue of spectators, null when not queued. */
   queuePos: number | null;
-  /** Seen in the last 45 s (see lib/reconnect.ts). False = phone in the background, closed tab, no network. */
+  /** Seen in the last 301 s (see lib/reconnect.ts). False = phone in the background, closed tab, no network. */
   connected: boolean;
 }
 

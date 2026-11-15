@@ -1,5 +1,5 @@
 // Scenario 1: two real browsers play a live round on the deployed site: create, join by link, random planes,
-// ready (auto start), every shot reaches the other player through Realtime (well under the 15 s polling
+// ready (auto start), every shot reaches the other player through Realtime (well under the 60 s polling
 // fallback), the turn passes both ways, heads keep the turn, the last head wins, the winner pop-up, both layouts
 // revealed, a new round followed live, leave. Runs on every project.
 import { expect, test } from "@playwright/test";

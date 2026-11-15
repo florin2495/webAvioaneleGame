@@ -8,7 +8,7 @@ Realtime Broadcast doar ca semnal de „refresh”, identitate prin token aleato
 | Tabel | Ce ține |
 | --- | --- |
 | `airplanes_rooms` | camera: cod, nume, parolă (scrypt), `planes_count`, `status`, `round`, host, câștigător |
-| `airplanes_players` | membrii: `seat` 1/2 = jucători, `null` = spectator (max 4 membri). Index unic pe `(room_id, seat)` |
+| `airplanes_players` | membrii: `seat` 1/2 = jucători, `null` = spectator. Index unic pe `(room_id, seat)` |
 | `airplanes_boards` | avioanele ascunse ale unui jucător într-o rundă: `[{ head, dir }]` |
 | `airplanes_moves` | lista ordonată a loviturilor rundei (`kind` rămâne `shot`; `guess` e istoric, nemaifolosit) |
 
@@ -27,7 +27,7 @@ Realtime Broadcast doar ca semnal de „refresh”, identitate prin token aleato
 5. **Plecare**: dacă un jucător pleacă (sau e scos) în timpul jocului, celălalt câștigă. Spectatorii vin și pleacă liber.
    În lobby, un spectator poate lua un loc liber (`/sit`).
 6. **Expirare leneșă**: lobby/terminat după 10 minute fără nimeni cu pagina deschisă, joc în desfășurare după 30 de minute.
-   Fiecare pagină deschisă face polling la `/state` (15 s), care împrospătează `last_activity_at`.
+   Fiecare pagină deschisă face polling la `/state` (60 s), care împrospătează `last_activity_at`.
 
 ## API (toate sub `/api/rooms`)
 

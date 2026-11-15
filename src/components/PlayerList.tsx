@@ -13,7 +13,7 @@ function KickBadge({ remainingMs, state, refresh }: { remainingMs: number | null
   return <span className="text-xs font-semibold text-rose-600 dark:text-rose-400">iese în {seconds} s</span>;
 }
 
-/** Shown next to a member not seen for 45 s (phone in the background, closed tab, no network). */
+/** Shown next to a member not seen for 301 s (phone in the background, closed tab, no network). */
 export function OfflineBadge({ connected }: { connected: boolean | undefined }) {
   if (connected !== false) return null;
   return (
